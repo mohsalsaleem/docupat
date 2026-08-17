@@ -1,4 +1,4 @@
-import { useRef } from 'octane';
+import { useEffect, useEffectEvent, useRef } from 'octane';
 import type { EditorView } from '@codemirror/view';
 import { mermaidBlocks } from '../diff';
 import { createEditor } from '../editor';
@@ -15,16 +15,20 @@ export function Workspace(props: WorkspaceProps) {
 }
 
 function EditorSurface(props:{content:string;onChange:(content:string)=>void;onSelection:(start:number,end:number)=>void;onEditor:(view:EditorView|null)=>void}) {
-  const editor = useRef<EditorView | null>(null);
-  function attach(host: HTMLDivElement | null) {
-    if (host && !editor.current) {
-      editor.current = createEditor(host, props.content, props.onChange, props.onSelection);
-      props.onEditor(editor.current);
-    } else if (!host && editor.current) {
-      editor.current.destroy();
-      editor.current = null;
-      props.onEditor(null);
-    }
-  }
-  return <section className="h-full min-w-0 overflow-hidden"><div ref={attach} className="h-full overflow-auto pb-32" /></section>;
+  const host = useRef<HTMLDivElement | null>(null);
+  const onChange = useEffectEvent(props.onChange);
+  const onSelection = useEffectEvent(props.onSelection);
+  const onEditor = useEffectEvent(props.onEditor);
+
+  useEffect(() => {
+    if (!host.current) return;
+    const editor = createEditor(host.current, props.content, onChange, onSelection);
+    onEditor(editor);
+    return () => {
+      onEditor(null);
+      editor.destroy();
+    };
+  }, []);
+
+  return <section className="h-full min-w-0 overflow-hidden"><div ref={host} className="h-full overflow-auto pb-32" /></section>;
 }
