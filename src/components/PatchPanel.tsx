@@ -5,24 +5,30 @@ interface PatchPanelProps { selection:{start:number;end:number};instruction:stri
 
 export function PatchPanel(props: PatchPanelProps) {
   const selected = props.selection.end > props.selection.start;
-  return <aside className="overflow-auto border-l border-white/10 bg-[#101318] p-5">
-    <div className="text-[10px] font-bold uppercase tracking-[.18em] text-zinc-600">AI patch</div>
-    <h2 className="mt-3 text-xl font-semibold">Change only what you select.</h2>
-    <p className="mt-2 text-xs leading-5 text-zinc-500">Readable context and writable scope are separate.</p>
-    <div className="mt-5 rounded-lg border border-white/10 bg-black/20 p-3 font-mono text-xs text-zinc-400">{selected ? `${props.selection.end - props.selection.start} characters selected` : 'No selection'}</div>
-    <label className="mt-5 block text-xs font-semibold text-zinc-400">Instruction</label>
-    <textarea value={props.instruction} onInput={(event) => props.onInstruction(event.currentTarget.value)} placeholder="Add passkey support and clarify recovery…" className="mt-2 h-28 w-full resize-none rounded-lg border border-white/10 bg-black/25 p-3 text-sm outline-none focus:border-lime-300/50" />
-    <label className="mt-3 flex gap-2 text-xs leading-5 text-zinc-500"><input type="checkbox" checked={props.useContext} onChange={(event) => props.onUseContext(event.currentTarget.checked)} className="accent-lime-300" />Use the rest of the document as read-only context</label>
-    <button disabled={props.busy || !selected || !props.instruction.trim()} onClick={props.onPropose} className="mt-4 w-full rounded-lg bg-lime-300 px-4 py-3 text-sm font-bold text-black disabled:opacity-30">{props.busy ? 'Working…' : 'Propose patch'}</button>
-    <p className="mt-3 text-xs leading-5 text-zinc-500">{props.message}</p>
+  return <>
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center bg-gradient-to-t from-[#0b0d10] via-[#0b0d10]/90 to-transparent px-6 pb-5 pt-12">
+      <div className="pointer-events-auto w-full max-w-3xl rounded-2xl border border-white/10 bg-[#171a20]/95 p-2 shadow-2xl backdrop-blur-xl">
+        <div className="flex items-center gap-2">
+          <span className={`ml-2 size-2 rounded-full ${selected ? 'bg-lime-300' : 'bg-zinc-600'}`} />
+          <input value={props.instruction} onInput={(event) => props.onInstruction(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !props.busy && selected && props.instruction.trim()) { event.preventDefault(); props.onPropose(); } }} placeholder={selected ? 'Describe the change to this selection…' : 'Select text or choose a section to edit with AI'} className="min-w-0 flex-1 bg-transparent px-2 py-3 text-sm outline-none placeholder:text-zinc-600" />
+          <button disabled={props.busy || !selected || !props.instruction.trim()} onClick={props.onPropose} className="rounded-xl bg-lime-300 px-4 py-2.5 text-xs font-bold text-black disabled:bg-white/5 disabled:text-zinc-600">{props.busy ? 'Drafting…' : 'Generate'}</button>
+        </div>
+        <div className="flex items-center justify-between px-3 pb-1 text-[11px] text-zinc-500">
+          <span>{selected ? `${props.selection.end - props.selection.start} characters selected` : props.message}</span>
+          <label className="flex items-center gap-2"><input type="checkbox" checked={props.useContext} onChange={(event) => props.onUseContext(event.currentTarget.checked)} className="accent-lime-300" />Read document context</label>
+        </div>
+      </div>
+    </div>
     {props.proposal ? <Proposal proposal={props.proposal} busy={props.busy} onApply={props.onApply} onReject={props.onReject} /> : null}
-  </aside>;
+  </>;
 }
 
 function Proposal(props:{proposal:Patch;busy:boolean;onApply:()=>void;onReject:()=>void}) {
-  return <section className="mt-6 border-t border-white/10 pt-5">
-    <div className="mb-3 flex justify-between text-xs font-bold"><span>Proposed patch</span><span className="font-mono text-zinc-600">DIFF</span></div>
-    <DiffView before={props.proposal.original} after={props.proposal.replacement} />
-    <div className="mt-3 flex justify-end gap-2"><button onClick={props.onReject} className="rounded-lg border border-white/10 px-3 py-2 text-xs">Reject</button><button disabled={props.busy} onClick={props.onApply} className="rounded-lg bg-lime-300 px-3 py-2 text-xs font-bold text-black">Apply patch</button></div>
-  </section>;
+  return <div className="absolute inset-0 z-30 grid place-items-center bg-black/45 p-8 backdrop-blur-sm">
+    <section className="max-h-[75vh] w-full max-w-3xl overflow-auto rounded-2xl border border-white/10 bg-[#171a20] p-5 shadow-2xl">
+      <div className="mb-4 flex items-center justify-between"><div><div className="text-sm font-semibold">Review focused edit</div><div className="mt-1 text-xs text-zinc-500">Only the selected text will change</div></div><span className="rounded-full bg-lime-300/10 px-2 py-1 font-mono text-[10px] text-lime-200">SCOPED PATCH</span></div>
+      <DiffView before={props.proposal.original} after={props.proposal.replacement} />
+      <div className="mt-5 flex justify-end gap-2"><button onClick={props.onReject} className="rounded-lg border border-white/10 px-4 py-2.5 text-xs hover:bg-white/5">Discard</button><button disabled={props.busy} onClick={props.onApply} className="rounded-lg bg-lime-300 px-4 py-2.5 text-xs font-bold text-black">Apply change</button></div>
+    </section>
+  </div>;
 }

@@ -1,6 +1,10 @@
+packages:
+  - .
+
+minimumReleaseAge: 0
+
 allowBuilds:
   esbuild: true
-minimumReleaseAgeExclude:
-  - '@octanejs/app-core@0.0.35'
-  - '@octanejs/vite-plugin@0.1.39'
-  - octane@0.1.39
+
+overrides:
+  '@codemirror/state': 6.7.1

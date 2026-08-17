@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'octane';
 import type { EditorView } from '@codemirror/view';
 import { api, type Document, type Patch } from '../api';
-import { createEditor, replaceEditorContent } from '../editor';
+import { replaceEditorContent } from '../editor';
 
 export function useDocPatch() {
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -15,7 +15,6 @@ export function useDocPatch() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('Select text or a section to create a scoped patch.');
   const [preview, setPreview] = useState(false);
-  const editorHost = useRef<HTMLDivElement | null>(null);
   const editor = useRef<EditorView | null>(null);
 
   async function open(id: string) {
@@ -37,12 +36,6 @@ export function useDocPatch() {
       if (items[0]) open(items[0].id);
     }).catch((error) => setMessage(asMessage(error)));
   }, []);
-
-  useEffect(() => {
-    if (!editorHost.current || editor.current || !document) return;
-    editor.current = createEditor(editorHost.current, document.content, setDraft, (start, end) => setSelection({ start, end }));
-    return () => { editor.current?.destroy(); editor.current = null; };
-  }, [document?.id]);
 
   async function save() {
     if (!document) return;
@@ -103,7 +96,10 @@ export function useDocPatch() {
 
   return {
     documents, document, draft, selection, instruction, useContext, proposal, patches, busy, message, preview,
-    editorHost, open, save, propose, apply, reject, chooseSection,
+    open, save, propose, apply, reject, chooseSection,
+    onEditor: (view: EditorView | null) => { editor.current = view; },
+    onSelection: (start: number, end: number) => setSelection({ start, end }),
+    onDraft: setDraft,
     setInstruction, setUseContext, setPreview,
   };
 }
