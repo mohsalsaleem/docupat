@@ -15,12 +15,18 @@ import (
 )
 
 type Handler struct {
-	service  *document.Service
-	llamaURL string
+	service *document.Service
+	llm     LLMInfo
 }
 
-func New(service *document.Service, llamaURL string) *Handler {
-	return &Handler{service: service, llamaURL: llamaURL}
+type LLMInfo struct {
+	Provider string `json:"provider"`
+	Model    string `json:"model"`
+	BaseURL  string `json:"baseUrl"`
+}
+
+func New(service *document.Service, info LLMInfo) *Handler {
+	return &Handler{service: service, llm: info}
 }
 
 func (h *Handler) Router(static fs.FS) http.Handler {
@@ -67,7 +73,7 @@ func fail(w http.ResponseWriter, err error) {
 }
 
 func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, 200, map[string]any{"app": "ok", "llama": h.service.LLMHealth(r.Context()), "llamaBaseUrl": h.llamaURL})
+	writeJSON(w, 200, map[string]any{"app": "ok", "llm": h.service.LLMHealth(r.Context()), "provider": h.llm.Provider, "model": h.llm.Model, "baseUrl": h.llm.BaseURL})
 }
 func (h *Handler) listDocuments(w http.ResponseWriter, r *http.Request) {
 	items, err := h.service.List(r.Context())

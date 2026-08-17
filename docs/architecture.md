@@ -11,14 +11,14 @@ main (composition root)
   │     ├── Repository     persistence port
   │     └── Generator      language-model port
   ├── storage.Repository   SQLite adapter
-  ├── llm.Client           OpenAI-compatible Llama adapter
+  ├── llm.Client           provider-neutral model adapter
   └── domain               entities and scoped-patch invariants
 ```
 
 - `internal/domain` owns document and patch entities, UTF-16 offset conversion, and the only operation allowed to replace document content.
 - `internal/document` owns application use cases. It depends on interfaces it defines, not SQLite or HTTP.
 - `internal/storage` implements the repository port with transactions and optimistic versions.
-- `internal/llm` implements the generator port and owns prompt construction.
+- `internal/llm` implements the generator port, owns prompt construction, and selects an OpenAI-compatible or Anthropic adapter from configuration.
 - `internal/httpapi` translates JSON/HTTP requests into application inputs and maps domain errors to status codes.
 - `main.go` is only the composition root, environment configuration, embedded static assets, and sample seeding.
 

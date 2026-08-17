@@ -1,30 +1,181 @@
 package llm
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
 	"docpatch/internal/document"
 )
 
+const systemPrompt = "You are a precise technical document editor. Follow the output contract exactly."
+
+type Config struct {
+	Provider string
+	BaseURL  string
+	APIKey   string
+	Model    string
+}
+
 type Client struct {
-	baseURL string
-	http    *http.Client
+	provider adapter
 }
 
-func NewClient(baseURL string, client *http.Client) *Client {
-	return &Client{baseURL: strings.TrimRight(baseURL, "/"), http: client}
+type adapter interface {
+	Generate(context.Context, string) (string, error)
+	Health(context.Context) string
 }
 
-func (c *Client) BaseURL() string { return c.baseURL }
+func NewClient(config Config, client *http.Client) (*Client, error) {
+	config.Provider = strings.ToLower(strings.TrimSpace(config.Provider))
+	config.BaseURL = strings.TrimRight(strings.TrimSpace(config.BaseURL), "/")
+	config.Model = strings.TrimSpace(config.Model)
+	if client == nil || config.BaseURL == "" || config.Model == "" {
+		return nil, errors.New("LLM HTTP client, base URL, and model are required")
+	}
 
-func (c *Client) Health(ctx context.Context) string {
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/v1/models", nil)
-	resp, err := c.http.Do(req)
+	var provider adapter
+	switch config.Provider {
+	case "openai":
+		provider = &openAIAdapter{config: config, http: client}
+	case "anthropic":
+		if config.APIKey == "" {
+			return nil, errors.New("LLM_API_KEY or ANTHROPIC_API_KEY is required for Anthropic")
+		}
+		provider = &anthropicAdapter{config: config, http: client}
+	default:
+		return nil, fmt.Errorf("unsupported LLM provider %q (use openai or anthropic)", config.Provider)
+	}
+	return &Client{provider: provider}, nil
+}
+
+func (c *Client) Health(ctx context.Context) string { return c.provider.Health(ctx) }
+
+func (c *Client) Generate(ctx context.Context, input document.GenerateInput) (string, error) {
+	return c.provider.Generate(ctx, buildPrompt(input))
+}
+
+type openAIAdapter struct {
+	config Config
+	http   *http.Client
+}
+
+func (a *openAIAdapter) Health(ctx context.Context) string {
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, a.config.BaseURL+"/v1/models", nil)
+	a.authorize(req)
+	return health(a.http, req)
+}
+
+func (a *openAIAdapter) Generate(ctx context.Context, prompt string) (string, error) {
+	body := map[string]any{
+		"model": a.config.Model, "temperature": 0.2,
+		"messages": []map[string]string{{"role": "system", "content": systemPrompt}, {"role": "user", "content": prompt}},
+	}
+	var output struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if err := requestJSON(ctx, a.http, a.config.BaseURL+"/v1/chat/completions", body, a.authorize, &output); err != nil {
+		return "", err
+	}
+	if len(output.Choices) == 0 {
+		return "", errors.New("model returned no replacement")
+	}
+	return nonEmpty(output.Choices[0].Message.Content)
+}
+
+func (a *openAIAdapter) authorize(req *http.Request) {
+	if a.config.APIKey != "" {
+		req.Header.Set("Authorization", "Bearer "+a.config.APIKey)
+	}
+}
+
+type anthropicAdapter struct {
+	config Config
+	http   *http.Client
+}
+
+func (a *anthropicAdapter) Health(ctx context.Context) string {
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, a.config.BaseURL+"/v1/models", nil)
+	a.authorize(req)
+	return health(a.http, req)
+}
+
+func (a *anthropicAdapter) Generate(ctx context.Context, prompt string) (string, error) {
+	body := map[string]any{
+		"model": a.config.Model, "max_tokens": 4096, "temperature": 0.2, "system": systemPrompt,
+		"messages": []map[string]string{{"role": "user", "content": prompt}},
+	}
+	var output struct {
+		Content []struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		} `json:"content"`
+	}
+	if err := requestJSON(ctx, a.http, a.config.BaseURL+"/v1/messages", body, a.authorize, &output); err != nil {
+		return "", err
+	}
+	for _, block := range output.Content {
+		if block.Type == "text" && strings.TrimSpace(block.Text) != "" {
+			return strings.TrimSpace(block.Text), nil
+		}
+	}
+	return "", errors.New("model returned no replacement")
+}
+
+func (a *anthropicAdapter) authorize(req *http.Request) {
+	req.Header.Set("x-api-key", a.config.APIKey)
+	req.Header.Set("anthropic-version", "2023-06-01")
+}
+
+func requestJSON(ctx context.Context, client *http.Client, url string, body any, authorize func(*http.Request), output any) error {
+	payload, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	authorize(req)
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("LLM provider: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		return providerError(resp)
+	}
+	if err := json.NewDecoder(resp.Body).Decode(output); err != nil {
+		return fmt.Errorf("decode LLM response: %w", err)
+	}
+	return nil
+}
+
+func providerError(resp *http.Response) error {
+	payload, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	var output struct {
+		Error struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if json.Unmarshal(payload, &output) == nil && output.Error.Message != "" {
+		return errors.New(output.Error.Message)
+	}
+	return fmt.Errorf("LLM provider returned %d", resp.StatusCode)
+}
+
+func health(client *http.Client, req *http.Request) string {
+	resp, err := client.Do(req)
 	if err != nil {
 		return "unavailable"
 	}
@@ -35,39 +186,12 @@ func (c *Client) Health(ctx context.Context) string {
 	return "connected"
 }
 
-func (c *Client) Generate(ctx context.Context, input document.GenerateInput) (string, error) {
-	prompt := buildPrompt(input)
-	body, _ := json.Marshal(map[string]any{"model": "local-model", "temperature": 0.2, "messages": []map[string]string{{"role": "system", "content": "You are a precise technical document editor. Follow the output contract exactly."}, {"role": "user", "content": prompt}}})
-	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/v1/chat/completions", strings.NewReader(string(body)))
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("llama-server: %w", err)
-	}
-	defer resp.Body.Close()
-	var output struct {
-		Choices []struct {
-			Message struct {
-				Content string `json:"content"`
-			} `json:"message"`
-		} `json:"choices"`
-		Error *struct {
-			Message string `json:"message"`
-		} `json:"error"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&output); err != nil {
-		return "", err
-	}
-	if resp.StatusCode >= 400 {
-		if output.Error != nil {
-			return "", errors.New(output.Error.Message)
-		}
-		return "", fmt.Errorf("llama-server returned %d", resp.StatusCode)
-	}
-	if len(output.Choices) == 0 {
+func nonEmpty(value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
 		return "", errors.New("model returned no replacement")
 	}
-	return strings.TrimSpace(output.Choices[0].Message.Content), nil
+	return value, nil
 }
 
 func buildPrompt(input document.GenerateInput) string {

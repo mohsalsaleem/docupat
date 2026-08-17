@@ -35,14 +35,45 @@ func main() {
 	if err = repository.Seed(context.Background(), "Project Atlas — PRD", sample); err != nil {
 		log.Fatal(err)
 	}
-	llamaURL := strings.TrimRight(env("LLAMA_BASE_URL", "http://127.0.0.1:8080"), "/")
-	model := llm.NewClient(llamaURL, &http.Client{Timeout: 2 * time.Minute})
+	modelConfig := loadLLMConfig()
+	model, err := llm.NewClient(modelConfig, &http.Client{Timeout: 2 * time.Minute})
+	if err != nil {
+		log.Fatal(err)
+	}
 	service := document.NewService(repository, model, newID, now)
 	dist, _ := fs.Sub(web, "dist")
-	handler := httpapi.New(service, llamaURL).Router(dist)
+	handler := httpapi.New(service, httpapi.LLMInfo{Provider: modelConfig.Provider, Model: modelConfig.Model, BaseURL: modelConfig.BaseURL}).Router(dist)
 	addr := "127.0.0.1:" + env("PORT", "4173")
-	log.Printf("DocPatch %s · Llama %s", addr, llamaURL)
+	log.Printf("DocPatch %s · %s/%s · %s", addr, modelConfig.Provider, modelConfig.Model, modelConfig.BaseURL)
 	log.Fatal(http.ListenAndServe(addr, handler))
+}
+
+func loadLLMConfig() llm.Config {
+	provider := strings.ToLower(env("LLM_PROVIDER", "openai"))
+	baseURL := os.Getenv("LLM_BASE_URL")
+	if baseURL == "" {
+		baseURL = os.Getenv("LLAMA_BASE_URL") // Backward compatibility.
+	}
+	if baseURL == "" {
+		if provider == "anthropic" {
+			baseURL = "https://api.anthropic.com"
+		} else {
+			baseURL = "http://127.0.0.1:8080"
+		}
+	}
+	model := os.Getenv("LLM_MODEL")
+	if model == "" && provider == "openai" {
+		model = "local-model"
+	}
+	apiKey := os.Getenv("LLM_API_KEY")
+	if apiKey == "" {
+		if provider == "anthropic" {
+			apiKey = os.Getenv("ANTHROPIC_API_KEY")
+		} else {
+			apiKey = os.Getenv("OPENAI_API_KEY")
+		}
+	}
+	return llm.Config{Provider: provider, BaseURL: strings.TrimRight(baseURL, "/"), APIKey: apiKey, Model: model}
 }
 
 func env(key, fallback string) string {
@@ -75,7 +106,7 @@ Engineering teams lose design context when requirements and architecture drift a
 flowchart LR
     Browser --> API
     API --> SQLite
-    API --> Llama[Local Llama]
+    API --> Model[Configured model]
 ` + "```" + `
 
 ## Authentication requirements
