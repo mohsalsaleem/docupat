@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'octane';
 import type { EditorView } from '@codemirror/view';
-import { api, type Document, type Patch } from '../api';
-import { replaceEditorContent } from '../editor';
+import { documentApi, type Document, type Patch } from '../features/documents';
+import { replaceEditorContent } from '../features/editor/codeMirror';
 
 export function useDocPatch() {
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -19,11 +19,11 @@ export function useDocPatch() {
 
   async function open(id: string) {
     try {
-      const next = await api.document(id);
+      const next = await documentApi.get(id);
       setDocument(next);
       setDraft(next.content);
       setProposal(null);
-      setPatches(await api.patches(id));
+      setPatches(await documentApi.patches(id));
       if (editor.current) replaceEditorContent(editor.current, next.content);
     } catch (error) {
       setMessage(asMessage(error));
@@ -31,7 +31,7 @@ export function useDocPatch() {
   }
 
   useEffect(() => {
-    api.documents().then((items) => {
+    documentApi.list().then((items) => {
       setDocuments(items);
       if (items[0]) open(items[0].id);
     }).catch((error) => setMessage(asMessage(error)));
@@ -40,9 +40,9 @@ export function useDocPatch() {
   async function save() {
     if (!document) return;
     await run(async () => {
-      const saved = await api.save({ ...document, content: draft });
+      const saved = await documentApi.save({ ...document, content: draft });
       setDocument(saved);
-      setDocuments(await api.documents());
+      setDocuments(await documentApi.list());
       setMessage(`Saved version ${saved.version}.`);
     });
   }
@@ -54,8 +54,8 @@ export function useDocPatch() {
         setMessage('Save the document before generating a patch.');
         return;
       }
-      setMessage('Local Llama is drafting a replacement…');
-      const next = await api.propose(document, selection.start, selection.end, instruction, useContext);
+      setMessage('The configured model is drafting a replacement…');
+      const next = await documentApi.propose(document, selection.start, selection.end, instruction, useContext);
       setProposal(next);
       setMessage('Review the source diff and rendered diagrams before applying.');
     });
@@ -64,12 +64,12 @@ export function useDocPatch() {
   async function apply() {
     if (!proposal) return;
     await run(async () => {
-      const next = await api.apply(proposal.id);
+      const next = await documentApi.apply(proposal.id);
       setDocument(next);
       setDraft(next.content);
       if (editor.current) replaceEditorContent(editor.current, next.content);
       setProposal(null);
-      setPatches(await api.patches(next.id));
+      setPatches(await documentApi.patches(next.id));
       setMessage(`Patch applied as version ${next.version}.`);
     });
   }
@@ -77,9 +77,9 @@ export function useDocPatch() {
   async function reject() {
     if (!proposal) return;
     await run(async () => {
-      await api.reject(proposal.id);
+      await documentApi.reject(proposal.id);
       setProposal(null);
-      setPatches(await api.patches(proposal.documentId));
+      setPatches(await documentApi.patches(proposal.documentId));
       setMessage('Patch rejected; the document was not changed.');
     });
   }

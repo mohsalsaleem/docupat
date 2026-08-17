@@ -1,8 +1,8 @@
 import { useEffect, useEffectEvent, useRef } from 'octane';
 import type { EditorView } from '@codemirror/view';
-import { mermaidBlocks } from '../diff';
-import { createEditor, replaceEditorContent } from '../editor';
-import { MermaidPreview } from '../MermaidPreview';
+import { createEditor, replaceEditorContent } from '../codeMirror';
+import { mermaidBlocks } from '../markdown';
+import { MermaidPreview } from './MermaidPreview';
 
 interface WorkspaceProps { preview:boolean; content:string; onChange:(content:string)=>void; onSelection:(start:number,end:number)=>void; onEditor:(view:EditorView|null)=>void }
 

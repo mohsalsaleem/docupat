@@ -25,24 +25,23 @@ main (composition root)
 ## Frontend
 
 ```text
-App
-  ├── useDocPatch controller
-  │     ├── API client
-  │     └── CodeMirror adapter
-  ├── Header
-  ├── Sidebar
-  ├── Workspace
-  │     └── MermaidPreview
-  └── PatchPanel
-        └── DiffView
+src/
+  ├── app/                 application controller and orchestration
+  ├── features/
+  │     ├── documents/     document contracts and API adapter
+  │     ├── editor/        CodeMirror, Markdown parsing, Mermaid rendering
+  │     ├── navigation/    application header and document navigation
+  │     └── patches/       AI composer, review flow, and diffing
+  ├── lib/                 framework-independent shared utilities
+  └── ui/                  reusable domain-agnostic UI primitives
 ```
 
-- Components render one area and communicate through typed props.
-- `useDocPatch` owns application state and async workflows.
-- `api.ts` owns transport details.
-- `editor.ts` isolates CodeMirror integration.
-- `diff.ts` contains pure parsing and diff functions.
-- `MermaidPreview` isolates Mermaid lifecycle and validation.
+- Feature packages expose public entry points through `index.ts`; app code does not depend on their internal component paths.
+- `ui` owns reusable primitives such as buttons, dialogs, and section labels without importing feature types.
+- `app/useDocPatch` owns application state and async workflows while depending on feature-level APIs.
+- `features/documents/api.ts` owns document transport details; `lib/http.ts` owns generic JSON transport.
+- `features/editor/codeMirror.ts` and `MermaidPreview` isolate imperative third-party integrations behind Octane effects.
+- Markdown parsing and patch diffing remain pure feature utilities.
 
 ## Core invariant
 
