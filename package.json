@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "coverage": "bash scripts/check-coverage.sh",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -50,7 +50,10 @@ LLM_PROVIDER=anthropic LLM_MODEL=your-anthropic-model ANTHROPIC_API_KEY=... go r
 ```bash
 go test ./...
 pnpm build
+pnpm coverage
 ```
+
+`pnpm coverage` runs the internal backend suite with cross-package instrumentation and fails when statement coverage drops below 80%. The current suite covers document workflows through the HTTP boundary, real SQLite persistence, scoped-patch invariants, and both model-provider adapters.
 
 Documents, immutable revisions, and patch proposals are stored in `data/docpatch.db`. DocPatch sends the selected text and, when enabled, the rest of the document as read-only context to the configured model provider. With the default local configuration, no document data is sent to a hosted service.
 
