@@ -1,0 +1,1 @@
+Run `pnpm build` to generate the embedded frontend assets.

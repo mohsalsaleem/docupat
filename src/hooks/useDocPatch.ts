@@ -1,0 +1,113 @@
+import { useEffect, useRef, useState } from 'octane';
+import type { EditorView } from '@codemirror/view';
+import { api, type Document, type Patch } from '../api';
+import { createEditor, replaceEditorContent } from '../editor';
+
+export function useDocPatch() {
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [document, setDocument] = useState<Document | null>(null);
+  const [draft, setDraft] = useState('');
+  const [selection, setSelection] = useState({ start: 0, end: 0 });
+  const [instruction, setInstruction] = useState('');
+  const [useContext, setUseContext] = useState(true);
+  const [proposal, setProposal] = useState<Patch | null>(null);
+  const [patches, setPatches] = useState<Patch[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('Select text or a section to create a scoped patch.');
+  const [preview, setPreview] = useState(false);
+  const editorHost = useRef<HTMLDivElement | null>(null);
+  const editor = useRef<EditorView | null>(null);
+
+  async function open(id: string) {
+    try {
+      const next = await api.document(id);
+      setDocument(next);
+      setDraft(next.content);
+      setProposal(null);
+      setPatches(await api.patches(id));
+      if (editor.current) replaceEditorContent(editor.current, next.content);
+    } catch (error) {
+      setMessage(asMessage(error));
+    }
+  }
+
+  useEffect(() => {
+    api.documents().then((items) => {
+      setDocuments(items);
+      if (items[0]) open(items[0].id);
+    }).catch((error) => setMessage(asMessage(error)));
+  }, []);
+
+  useEffect(() => {
+    if (!editorHost.current || editor.current || !document) return;
+    editor.current = createEditor(editorHost.current, document.content, setDraft, (start, end) => setSelection({ start, end }));
+    return () => { editor.current?.destroy(); editor.current = null; };
+  }, [document?.id]);
+
+  async function save() {
+    if (!document) return;
+    await run(async () => {
+      const saved = await api.save({ ...document, content: draft });
+      setDocument(saved);
+      setDocuments(await api.documents());
+      setMessage(`Saved version ${saved.version}.`);
+    });
+  }
+
+  async function propose() {
+    if (!document || !(selection.end > selection.start) || !instruction.trim()) return;
+    await run(async () => {
+      if (draft !== document.content) {
+        setMessage('Save the document before generating a patch.');
+        return;
+      }
+      setMessage('Local Llama is drafting a replacement…');
+      const next = await api.propose(document, selection.start, selection.end, instruction, useContext);
+      setProposal(next);
+      setMessage('Review the source diff and rendered diagrams before applying.');
+    });
+  }
+
+  async function apply() {
+    if (!proposal) return;
+    await run(async () => {
+      const next = await api.apply(proposal.id);
+      setDocument(next);
+      setDraft(next.content);
+      if (editor.current) replaceEditorContent(editor.current, next.content);
+      setProposal(null);
+      setPatches(await api.patches(next.id));
+      setMessage(`Patch applied as version ${next.version}.`);
+    });
+  }
+
+  async function reject() {
+    if (!proposal) return;
+    await run(async () => {
+      await api.reject(proposal.id);
+      setProposal(null);
+      setPatches(await api.patches(proposal.documentId));
+      setMessage('Patch rejected; the document was not changed.');
+    });
+  }
+
+  function chooseSection(start: number, end: number) {
+    editor.current?.dispatch({ selection: { anchor: start, head: end }, scrollIntoView: true });
+    editor.current?.focus();
+  }
+
+  async function run(action: () => Promise<void>) {
+    setBusy(true);
+    try { await action(); } catch (error) { setMessage(asMessage(error)); } finally { setBusy(false); }
+  }
+
+  return {
+    documents, document, draft, selection, instruction, useContext, proposal, patches, busy, message, preview,
+    editorHost, open, save, propose, apply, reject, chooseSection,
+    setInstruction, setUseContext, setPreview,
+  };
+}
+
+function asMessage(error: unknown) { return error instanceof Error ? error.message : 'Unexpected error'; }
+
+export type DocPatchController = ReturnType<typeof useDocPatch>;

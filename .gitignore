@@ -1,0 +1,14 @@
+node_modules/
+data/
+.env
+.env.*
+!.env.example
+
+dist/*
+!dist/placeholder.txt
+
+*.db
+*.db-shm
+*.db-wal
+.DS_Store
+coverage/
