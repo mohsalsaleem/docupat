@@ -36,6 +36,13 @@ func TestProposeRejectsStaleDocumentVersion(t *testing.T) {
 	}
 }
 
+func TestPreserveBoundaryWhitespace(t *testing.T) {
+	got := preserveBoundaryWhitespace("\n## Target\nBody\n\n", "## Target\nNew body")
+	if got != "\n## Target\nNew body\n\n" {
+		t.Fatalf("preserveBoundaryWhitespace() = %q", got)
+	}
+}
+
 type fakeGenerator struct {
 	input       GenerateInput
 	replacement string

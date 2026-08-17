@@ -2,6 +2,8 @@
 
 Code-editor-style AI patches for technical Markdown documents, with Mermaid diagrams and durable SQLite history. The model may read document context, but the Go backend only permits it to replace the explicitly selected range.
 
+![DocPatch focused editing workflow](docs/assets/docpatch-demo.gif)
+
 ## Run
 
 Requirements: Go 1.26+, Node.js 22.22.2+, pnpm, and an OpenAI-compatible `llama-server`.

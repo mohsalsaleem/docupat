@@ -110,9 +110,15 @@ func (s *Service) Propose(ctx context.Context, input ProposeInput) (domain.Patch
 	if strings.TrimSpace(replacement) == "" {
 		return domain.Patch{}, errors.New("model returned no replacement")
 	}
-	p := domain.Patch{ID: s.newID(), DocumentID: doc.ID, BaseVersion: doc.Version, Start: input.Selection.Start, End: input.Selection.End, Original: target, Replacement: strings.TrimSpace(replacement), Instruction: input.Instruction, Status: "proposed", CreatedAt: s.now()}
+	p := domain.Patch{ID: s.newID(), DocumentID: doc.ID, BaseVersion: doc.Version, Start: input.Selection.Start, End: input.Selection.End, Original: target, Replacement: preserveBoundaryWhitespace(target, replacement), Instruction: input.Instruction, Status: "proposed", CreatedAt: s.now()}
 	if err := s.repository.CreatePatch(ctx, p); err != nil {
 		return domain.Patch{}, err
 	}
 	return p, nil
+}
+
+func preserveBoundaryWhitespace(original, replacement string) string {
+	leading := original[:len(original)-len(strings.TrimLeft(original, " \t\r\n"))]
+	trailing := original[len(strings.TrimRight(original, " \t\r\n")):]
+	return leading + strings.TrimSpace(replacement) + trailing
 }
