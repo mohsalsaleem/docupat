@@ -2,7 +2,7 @@
 
 Code-editor-style AI patches for technical Markdown documents, with Mermaid diagrams and durable SQLite history. The model may read document context, but the Go backend only permits it to replace the explicitly selected range.
 
-![DocPatch focused editing workflow](docs/assets/docpatch-demo.gif)
+<img src="./docs/assets/docpatch-demo.gif" alt="DocPatch focused editing workflow" width="100%">
 
 ## Run
 
