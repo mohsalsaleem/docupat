@@ -17,20 +17,30 @@ type WorkspaceReader interface {
 	ListIndexedLinks(context.Context) ([]domain.IndexedLink, error)
 }
 
-type Compiler struct {
-	workspace     WorkspaceReader
-	MaxCharacters int
+type SemanticRetriever interface {
+	Retrieve(context.Context, string, []domain.IndexedSection, int) ([]domain.ContextItem, error)
 }
 
-func New(workspace WorkspaceReader, maxCharacters int) *Compiler {
+type Compiler struct {
+	workspace                 WorkspaceReader
+	semantic                  SemanticRetriever
+	MaxCharacters             int
+	MinimumExplicitCharacters int
+}
+
+func New(workspace WorkspaceReader, maxCharacters int, semantic ...SemanticRetriever) *Compiler {
 	if maxCharacters <= 0 {
 		maxCharacters = defaultBudget
 	}
-	return &Compiler{workspace: workspace, MaxCharacters: maxCharacters}
+	compiler := &Compiler{workspace: workspace, MaxCharacters: maxCharacters, MinimumExplicitCharacters: 800}
+	if len(semantic) > 0 {
+		compiler.semantic = semantic[0]
+	}
+	return compiler
 }
 
 // Compile resolves structural and explicit workspace relationships without a model call.
-func (c *Compiler) Compile(ctx context.Context, document domain.Document, selection domain.Selection) ([]domain.ContextItem, error) {
+func (c *Compiler) Compile(ctx context.Context, document domain.Document, selection domain.Selection, instruction string) ([]domain.ContextItem, error) {
 	start, end, err := selection.ByteRange(document.Content)
 	if err != nil {
 		return nil, err
@@ -85,6 +95,24 @@ func (c *Compiler) Compile(ctx context.Context, document domain.Document, select
 		if target, ok := resolveTarget(sections, sourceDocument(sections, link.SourceSectionID), link); ok && target.ID == selected.ID {
 			if source, found := sectionByID(sections, link.SourceSectionID); found {
 				add(source, "backlink", false)
+			}
+		}
+	}
+	if c.semantic != nil && c.MaxCharacters-remaining < c.MinimumExplicitCharacters && remaining > 0 {
+		candidates := make([]domain.IndexedSection, 0)
+		for _, candidate := range sections {
+			overlapsTarget := candidate.DocumentID == document.ID && candidate.Start < end && candidate.End > start
+			if !seen[candidate.ID] && !overlapsTarget {
+				candidates = append(candidates, candidate)
+			}
+		}
+		semanticItems, semanticErr := c.semantic.Retrieve(ctx, strings.TrimSpace(instruction+"\n"+document.Content[start:end]), candidates, remaining)
+		if semanticErr == nil {
+			for _, item := range semanticItems {
+				if !seen[item.SectionID] {
+					items = append(items, item)
+					seen[item.SectionID] = true
+				}
 			}
 		}
 	}

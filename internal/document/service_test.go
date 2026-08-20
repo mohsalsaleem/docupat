@@ -60,7 +60,7 @@ func (f *fakeGenerator) Health(context.Context) string { return "connected" }
 
 type fakeCompiler struct{ items []domain.ContextItem }
 
-func (f *fakeCompiler) Compile(context.Context, domain.Document, domain.Selection) ([]domain.ContextItem, error) {
+func (f *fakeCompiler) Compile(context.Context, domain.Document, domain.Selection, string) ([]domain.ContextItem, error) {
 	return f.items, nil
 }
 

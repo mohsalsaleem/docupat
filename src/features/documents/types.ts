@@ -10,12 +10,13 @@ export interface Document {
 export type PatchStatus = 'proposed' | 'applied' | 'rejected';
 
 export interface ContextItem {
-  kind: 'ancestor' | 'reference' | 'backlink';
+  kind: 'ancestor' | 'reference' | 'backlink' | 'semantic';
   title: string;
   documentId: string;
   documentTitle: string;
   sectionId: string;
   content: string;
+  score?: number;
 }
 
 export interface Patch {

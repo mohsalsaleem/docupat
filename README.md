@@ -34,6 +34,10 @@ Stellarity supports OpenAI-compatible APIs—including local `llama-server`—an
 | `LLM_MODEL` | Provider model identifier; defaults to `local-model` for OpenAI-compatible APIs |
 | `LLM_BASE_URL` | API base URL; defaults to local Llama for `openai` and Anthropic's API for `anthropic` |
 | `LLM_API_KEY` | Provider API key, when required |
+| `SEMANTIC_CONTEXT_ENABLED` | Enables cached semantic retrieval only when explicit context is insufficient; defaults to `false` |
+| `EMBEDDING_MODEL` | Model used by the optional OpenAI-compatible embeddings endpoint |
+| `EMBEDDING_BASE_URL` | Embeddings API base URL; defaults to `LLM_BASE_URL` |
+| `EMBEDDING_API_KEY` | Embeddings API key; defaults to the configured model API key |
 
 `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` are supported as provider-specific alternatives to `LLM_API_KEY`. The legacy `LLAMA_BASE_URL` variable remains supported.
 
@@ -56,5 +60,7 @@ pnpm coverage
 `pnpm coverage` runs the internal backend suite with cross-package instrumentation and fails when statement coverage drops below 80%. The current suite covers document workflows through the HTTP boundary, real SQLite persistence, scoped-patch invariants, and both model-provider adapters.
 
 Documents, immutable revisions, section/link indexes, patch proposals, and their context manifests are stored in `data/docpatch.db`. When focused context is enabled, Stellarity deterministically resolves ancestor headings, Markdown links, wiki links, and backlinks across the workspace within a 6,000-character budget. Only those sources and the selected target are sent to the configured provider. Context compilation itself uses no model tokens. With the default local configuration, no document data is sent to a hosted service.
+
+Semantic retrieval is an opt-in fallback. When enabled, it runs only if structural and explicit relationships contribute fewer than 800 context characters. Section embeddings are cached by content hash and model in SQLite; unchanged sections are not embedded again. Matches below the similarity threshold are discarded, at most three semantic sources are admitted, and all sources still share the same 6,000-character budget.
 
 See [docs/architecture.md](docs/architecture.md) for package boundaries, dependency direction, and extension points.

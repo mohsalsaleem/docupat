@@ -18,6 +18,7 @@ import (
 	"docpatch/internal/httpapi"
 	"docpatch/internal/llm"
 	"docpatch/internal/markdownindex"
+	"docpatch/internal/semantic"
 	"docpatch/internal/storage"
 )
 
@@ -43,7 +44,15 @@ func main() {
 		log.Fatal(err)
 	}
 	indexer := markdownindex.New()
-	service := document.NewService(repository, model, contextcompile.New(repository, 6000), indexer, newID, now)
+	var semanticRetriever contextcompile.SemanticRetriever
+	if semanticEnabled() {
+		embeddings, embeddingErr := llm.NewEmbeddingClient(loadEmbeddingConfig(modelConfig), &http.Client{Timeout: 2 * time.Minute})
+		if embeddingErr != nil {
+			log.Fatal(embeddingErr)
+		}
+		semanticRetriever = semantic.New(repository, embeddings, semantic.Config{})
+	}
+	service := document.NewService(repository, model, contextcompile.New(repository, 6000, semanticRetriever), indexer, newID, now)
 	if err = service.ReindexAll(context.Background()); err != nil {
 		log.Fatal(err)
 	}
@@ -52,6 +61,19 @@ func main() {
 	addr := "127.0.0.1:" + env("PORT", "4173")
 	log.Printf("Stellarity %s · %s/%s · %s", addr, modelConfig.Provider, modelConfig.Model, modelConfig.BaseURL)
 	log.Fatal(http.ListenAndServe(addr, handler))
+}
+
+func semanticEnabled() bool {
+	value := strings.ToLower(strings.TrimSpace(os.Getenv("SEMANTIC_CONTEXT_ENABLED")))
+	return value == "1" || value == "true" || value == "yes"
+}
+
+func loadEmbeddingConfig(modelConfig llm.Config) llm.EmbeddingConfig {
+	return llm.EmbeddingConfig{
+		BaseURL: env("EMBEDDING_BASE_URL", modelConfig.BaseURL),
+		APIKey:  env("EMBEDDING_API_KEY", modelConfig.APIKey),
+		Model:   os.Getenv("EMBEDDING_MODEL"),
+	}
 }
 
 func loadLLMConfig() llm.Config {

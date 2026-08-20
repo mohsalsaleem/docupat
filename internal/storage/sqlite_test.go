@@ -65,3 +65,36 @@ func TestReplaceDocumentIndexOnlyChangesTargetDocument(t *testing.T) {
 		t.Fatalf("unexpected incremental index: sections=%#v links=%#v", sections, links)
 	}
 }
+
+func TestSectionEmbeddingRoundTrip(t *testing.T) {
+	next := 0
+	repository, err := Open(filepath.Join(t.TempDir(), "embeddings.db"), func() string {
+		next++
+		return string(rune('a' + next))
+	}, func() string { return "2026-01-01T00:00:00Z" })
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer repository.Close()
+	document, _ := repository.CreateDocument(context.Background(), "Design", "# Design\n")
+	index := markdownindex.New().Index(document)
+	if err := repository.ReplaceDocumentIndex(context.Background(), index); err != nil {
+		t.Fatal(err)
+	}
+	want := domain.SectionEmbedding{SectionID: index.Sections[0].ID, ContentHash: "hash", Model: "embed", Vector: []float64{0.25, 0.75}}
+	if err := repository.UpsertSectionEmbeddings(context.Background(), []domain.SectionEmbedding{want}); err != nil {
+		t.Fatal(err)
+	}
+	items, err := repository.ListSectionEmbeddings(context.Background(), "embed")
+	if err != nil || len(items) != 1 || items[0].Vector[1] != 0.75 {
+		t.Fatalf("embedding round trip failed: items=%#v err=%v", items, err)
+	}
+	document.Content = "# Design\n\nUpdated body.\n"
+	if err := repository.ReplaceDocumentIndex(context.Background(), markdownindex.New().Index(document)); err != nil {
+		t.Fatal(err)
+	}
+	items, err = repository.ListSectionEmbeddings(context.Background(), "embed")
+	if err != nil || len(items) != 1 {
+		t.Fatalf("stable section embedding was discarded: items=%#v err=%v", items, err)
+	}
+}

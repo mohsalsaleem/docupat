@@ -28,7 +28,7 @@ type Generator interface {
 }
 
 type ContextCompiler interface {
-	Compile(context.Context, domain.Document, domain.Selection) ([]domain.ContextItem, error)
+	Compile(context.Context, domain.Document, domain.Selection, string) ([]domain.ContextItem, error)
 }
 
 type Indexer interface {
@@ -147,7 +147,7 @@ func (s *Service) Propose(ctx context.Context, input ProposeInput) (domain.Patch
 	target := doc.Content[start:end]
 	var compiled []domain.ContextItem
 	if input.UseContext {
-		compiled, err = s.compiler.Compile(ctx, doc, input.Selection)
+		compiled, err = s.compiler.Compile(ctx, doc, input.Selection, input.Instruction)
 		if err != nil {
 			return domain.Patch{}, err
 		}

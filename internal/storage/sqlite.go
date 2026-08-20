@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS patches (id TEXT PRIMARY KEY, document_id TEXT NOT NU
 CREATE TABLE IF NOT EXISTS document_revisions (id TEXT PRIMARY KEY, document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE, version INTEGER NOT NULL, content TEXT NOT NULL, patch_id TEXT REFERENCES patches(id), created_at TEXT NOT NULL, UNIQUE(document_id, version));
 CREATE TABLE IF NOT EXISTS document_sections (id TEXT PRIMARY KEY, document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE, document_title TEXT NOT NULL, title TEXT NOT NULL, slug TEXT NOT NULL, level INTEGER NOT NULL, start_offset INTEGER NOT NULL, end_offset INTEGER NOT NULL, content TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS document_links (id INTEGER PRIMARY KEY AUTOINCREMENT, source_section_id TEXT NOT NULL REFERENCES document_sections(id) ON DELETE CASCADE, target_document TEXT NOT NULL, target_heading TEXT NOT NULL, kind TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS section_embeddings (section_id TEXT NOT NULL REFERENCES document_sections(id) ON DELETE CASCADE, model TEXT NOT NULL, content_hash TEXT NOT NULL, vector_json TEXT NOT NULL, PRIMARY KEY(section_id, model));
 CREATE INDEX IF NOT EXISTS patches_document_created ON patches(document_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS sections_document_position ON document_sections(document_id, start_offset);
 CREATE INDEX IF NOT EXISTS sections_slug ON document_sections(slug);
@@ -264,11 +265,36 @@ func (r *Repository) ReplaceDocumentIndex(ctx context.Context, index domain.Docu
 		return err
 	}
 	defer tx.Rollback()
-	if _, err = tx.ExecContext(ctx, "DELETE FROM document_sections WHERE document_id=?", index.DocumentID); err != nil {
+	if _, err = tx.ExecContext(ctx, "DELETE FROM document_links WHERE source_section_id IN (SELECT id FROM document_sections WHERE document_id=?)", index.DocumentID); err != nil {
 		return err
 	}
+	keep := map[string]bool{}
 	for _, section := range index.Sections {
-		if _, err = tx.ExecContext(ctx, "INSERT INTO document_sections(id,document_id,document_title,title,slug,level,start_offset,end_offset,content) VALUES(?,?,?,?,?,?,?,?,?)", section.ID, section.DocumentID, section.DocumentTitle, section.Title, section.Slug, section.Level, section.Start, section.End, section.Content); err != nil {
+		keep[section.ID] = true
+		if _, err = tx.ExecContext(ctx, "INSERT INTO document_sections(id,document_id,document_title,title,slug,level,start_offset,end_offset,content) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET document_title=excluded.document_title,title=excluded.title,slug=excluded.slug,level=excluded.level,start_offset=excluded.start_offset,end_offset=excluded.end_offset,content=excluded.content", section.ID, section.DocumentID, section.DocumentTitle, section.Title, section.Slug, section.Level, section.Start, section.End, section.Content); err != nil {
+			return err
+		}
+	}
+	rows, err := tx.QueryContext(ctx, "SELECT id FROM document_sections WHERE document_id=?", index.DocumentID)
+	if err != nil {
+		return err
+	}
+	obsolete := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
+		}
+		if !keep[id] {
+			obsolete = append(obsolete, id)
+		}
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	for _, id := range obsolete {
+		if _, err = tx.ExecContext(ctx, "DELETE FROM document_sections WHERE id=?", id); err != nil {
 			return err
 		}
 	}
@@ -312,4 +338,43 @@ func (r *Repository) ListIndexedLinks(ctx context.Context) ([]domain.IndexedLink
 		items = append(items, item)
 	}
 	return items, rows.Err()
+}
+
+func (r *Repository) ListSectionEmbeddings(ctx context.Context, model string) ([]domain.SectionEmbedding, error) {
+	rows, err := r.db.QueryContext(ctx, "SELECT section_id,content_hash,model,vector_json FROM section_embeddings WHERE model=?", model)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []domain.SectionEmbedding{}
+	for rows.Next() {
+		var item domain.SectionEmbedding
+		var vectorJSON string
+		if err := rows.Scan(&item.SectionID, &item.ContentHash, &item.Model, &vectorJSON); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal([]byte(vectorJSON), &item.Vector); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func (r *Repository) UpsertSectionEmbeddings(ctx context.Context, items []domain.SectionEmbedding) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for _, item := range items {
+		vectorJSON, marshalErr := json.Marshal(item.Vector)
+		if marshalErr != nil {
+			return marshalErr
+		}
+		if _, err = tx.ExecContext(ctx, "INSERT INTO section_embeddings(section_id,model,content_hash,vector_json) VALUES(?,?,?,?) ON CONFLICT(section_id,model) DO UPDATE SET content_hash=excluded.content_hash,vector_json=excluded.vector_json", item.SectionID, item.Model, item.ContentHash, string(vectorJSON)); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }

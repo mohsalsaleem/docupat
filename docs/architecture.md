@@ -13,6 +13,7 @@ main (composition root)
   │     └── ContextCompiler deterministic context port
   ├── markdownindex        Markdown section/link indexer
   ├── contextcompile       workspace relationship resolver
+  ├── semantic             optional cached similarity retriever
   ├── storage.Repository   SQLite adapter
   ├── llm.Client           provider-neutral model adapter
   └── domain               entities and scoped-patch invariants
@@ -22,6 +23,7 @@ main (composition root)
 - `internal/document` owns application use cases. It depends on interfaces it defines, not SQLite or HTTP.
 - `internal/markdownindex` parses saved Markdown into stable section identities and explicit relationship edges.
 - `internal/contextcompile` resolves indexed ancestors, cross-document references, and backlinks, deduplicates sources, and enforces a character budget without calling a model.
+- `internal/semantic` provides the optional fallback: cached embeddings, cosine ranking, score thresholds, and a maximum-result bound.
 - `internal/storage` implements the repository port with transactions and optimistic versions.
 - `internal/llm` implements the generator port, owns prompt construction, and selects an OpenAI-compatible or Anthropic adapter from configuration.
 - `internal/httpapi` translates JSON/HTTP requests into application inputs and maps domain errors to status codes.
@@ -64,4 +66,4 @@ selected range + instruction
                                       └── scoped Patch ──> review ──> transactional apply
 ```
 
-The context manifest is deterministic, inspectable in the review dialog, persisted with the patch, and sent to the model as read-only material. Each document write incrementally replaces only that document's section and link rows in SQLite. The compiler intentionally avoids embeddings and model-based extraction. Indexing is linear in the changed document size; model usage remains limited to the final generation request.
+The context manifest is inspectable in the review dialog, persisted with the patch, and sent to the model as read-only material. Each document write incrementally replaces only that document's section and link rows in SQLite. Deterministic relationships are always resolved first. If explicitly enabled and those relationships are insufficient, semantic retrieval may add a few scored sources from cached section embeddings. Generation remains a separate, final model request.

@@ -13,11 +13,12 @@ export function ContextSummary({ items }: { items: ContextItem[] }) {
         <span className="mr-1.5 text-[var(--accent)]">{symbol(item.kind)}</span>{item.title}
         <span className="ml-1.5 text-zinc-500">{item.documentTitle}</span>
         <span className="ml-1.5 text-zinc-600">{item.kind}</span>
+        {item.score ? <span className="ml-1 text-zinc-600">{Math.round(item.score * 100)}%</span> : null}
       </span>)}
     </div> : <p className="text-xs text-zinc-600">No linked or structural context was needed.</p>}
   </section>;
 }
 
 function symbol(kind: ContextItem['kind']) {
-  return kind === 'ancestor' ? '↳' : kind === 'backlink' ? '←' : '→';
+  return kind === 'ancestor' ? '↳' : kind === 'backlink' ? '←' : kind === 'semantic' ? '≈' : '→';
 }
