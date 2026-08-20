@@ -27,7 +27,7 @@ export function PatchComposer(props: PatchPanelProps) {
 
 function Proposal(props:{proposal:Patch;busy:boolean;onApply:()=>void;onReject:()=>void}) {
   return <Dialog title="Review focused edit" description="Only the selected text will change" badge="SCOPED PATCH" busy={props.busy} confirmLabel="Apply change" dismissLabel="Discard" onConfirm={props.onApply} onDismiss={props.onReject}>
-    <ContextSummary items={props.proposal.context ?? []} />
+    <ContextSummary items={props.proposal.context ?? []} assessment={props.proposal.assessment} />
     <DiffView before={props.proposal.original} after={props.proposal.replacement} />
   </Dialog>;
 }

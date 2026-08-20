@@ -14,13 +14,17 @@ func TestCompileResolvesCrossDocumentReferencesAndBacklinks(t *testing.T) {
 	auth := domain.Document{ID: "auth", Title: "Authentication", Content: "# Authentication\n\n## Sessions\n\nTokens expire.\n\n## Consumers\n\nSee [[API#Endpoint]].\n"}
 	workspace := indexedWorkspace(api, auth)
 	start := len("# API\n\n")
-	items, err := New(workspace, 6000).Compile(context.Background(), api, domain.Selection{Start: start, End: len(api.Content)}, "clarify")
+	compiled, err := New(workspace, 6000).Compile(context.Background(), api, domain.Selection{Start: start, End: len(api.Content)}, "clarify")
 	if err != nil {
 		t.Fatal(err)
 	}
+	items := compiled.Items
 	want := []struct{ kind, title, document string }{{"ancestor", "API", "API"}, {"reference", "Sessions", "Authentication"}, {"backlink", "Consumers", "Authentication"}}
 	if len(items) != len(want) {
 		t.Fatalf("items = %#v", items)
+	}
+	if compiled.Assessment.Level != "high" || compiled.Assessment.Explicit != 2 {
+		t.Fatalf("unexpected assessment: %#v", compiled.Assessment)
 	}
 	for i := range want {
 		if items[i].Kind != want[i].kind || items[i].Title != want[i].title || items[i].DocumentTitle != want[i].document {
@@ -35,12 +39,12 @@ func TestCompileUsesSemanticRetrieverOnlyAsFallback(t *testing.T) {
 	semantic := &fakeSemantic{items: []domain.ContextItem{{Kind: "semantic", Title: "Related", SectionID: workspace.sections[1].ID, Content: "Useful context.", Score: 0.91}}}
 	compiler := New(workspace, 6000, semantic)
 	end := len("# Target\n\nShort target.\n\n")
-	items, err := compiler.Compile(context.Background(), document, domain.Selection{Start: 0, End: end}, "improve security")
+	compiled, err := compiler.Compile(context.Background(), document, domain.Selection{Start: 0, End: end}, "improve security")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if semantic.calls != 1 || len(items) != 1 || items[0].Kind != "semantic" || !strings.Contains(semantic.query, "improve security") {
-		t.Fatalf("fallback not used correctly: calls=%d query=%q items=%#v", semantic.calls, semantic.query, items)
+	if semantic.calls != 1 || len(compiled.Items) != 1 || compiled.Items[0].Kind != "semantic" || !strings.Contains(semantic.query, "improve security") {
+		t.Fatalf("fallback not used correctly: calls=%d query=%q items=%#v", semantic.calls, semantic.query, compiled.Items)
 	}
 }
 
@@ -49,12 +53,12 @@ func TestCompileHonorsBudgetAndExcludesTarget(t *testing.T) {
 	workspace := indexedWorkspace(document)
 	start := len("# Root\n\n")
 	end := start + len("## Target\n\nUse [[Reference]].\n\n")
-	items, err := New(workspace, 12).Compile(context.Background(), document, domain.Selection{Start: start, End: end}, "rewrite")
+	compiled, err := New(workspace, 12).Compile(context.Background(), document, domain.Selection{Start: start, End: end}, "rewrite")
 	if err != nil {
 		t.Fatal(err)
 	}
 	total := 0
-	for _, item := range items {
+	for _, item := range compiled.Items {
 		total += len(item.Content)
 		if item.Title == "Target" {
 			t.Fatal("target leaked into context")

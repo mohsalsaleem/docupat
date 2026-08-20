@@ -32,4 +32,15 @@ export interface Patch {
   createdAt: string;
   appliedAt?: string;
   context: ContextItem[];
+  assessment: ContextAssessment;
+}
+
+export interface ContextAssessment {
+  score: number;
+  level: 'low' | 'medium' | 'high';
+  structural: number;
+  explicit: number;
+  semantic: number;
+  unresolved: number;
+  summary: string;
 }

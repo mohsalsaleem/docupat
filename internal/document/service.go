@@ -28,7 +28,7 @@ type Generator interface {
 }
 
 type ContextCompiler interface {
-	Compile(context.Context, domain.Document, domain.Selection, string) ([]domain.ContextItem, error)
+	Compile(context.Context, domain.Document, domain.Selection, string) (domain.CompiledContext, error)
 }
 
 type Indexer interface {
@@ -145,21 +145,21 @@ func (s *Service) Propose(ctx context.Context, input ProposeInput) (domain.Patch
 		return domain.Patch{}, err
 	}
 	target := doc.Content[start:end]
-	var compiled []domain.ContextItem
+	var compiled domain.CompiledContext
 	if input.UseContext {
 		compiled, err = s.compiler.Compile(ctx, doc, input.Selection, input.Instruction)
 		if err != nil {
 			return domain.Patch{}, err
 		}
 	}
-	replacement, err := s.generator.Generate(ctx, GenerateInput{Target: target, Context: compiled, Instruction: input.Instruction})
+	replacement, err := s.generator.Generate(ctx, GenerateInput{Target: target, Context: compiled.Items, Instruction: input.Instruction})
 	if err != nil {
 		return domain.Patch{}, err
 	}
 	if strings.TrimSpace(replacement) == "" {
 		return domain.Patch{}, errors.New("model returned no replacement")
 	}
-	p := domain.Patch{ID: s.newID(), DocumentID: doc.ID, BaseVersion: doc.Version, Start: input.Selection.Start, End: input.Selection.End, Original: target, Replacement: preserveBoundaryWhitespace(target, replacement), Instruction: input.Instruction, Status: "proposed", CreatedAt: s.now(), Context: compiled}
+	p := domain.Patch{ID: s.newID(), DocumentID: doc.ID, BaseVersion: doc.Version, Start: input.Selection.Start, End: input.Selection.End, Original: target, Replacement: preserveBoundaryWhitespace(target, replacement), Instruction: input.Instruction, Status: "proposed", CreatedAt: s.now(), Context: compiled.Items, Assessment: compiled.Assessment}
 	if err := s.repository.CreatePatch(ctx, p); err != nil {
 		return domain.Patch{}, err
 	}

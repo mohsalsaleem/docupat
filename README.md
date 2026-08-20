@@ -63,4 +63,6 @@ Documents, immutable revisions, section/link indexes, patch proposals, and their
 
 Semantic retrieval is an opt-in fallback. When enabled, it runs only if structural and explicit relationships contribute fewer than 800 context characters. Section embeddings are cached by content hash and model in SQLite; unchanged sections are not embedded again. Matches below the similarity threshold are discarded, at most three semantic sources are admitted, and all sources still share the same 6,000-character budget.
 
+Every generated patch includes a rule-based confidence assessment. Stellarity scores structural ancestry, explicit relationships, semantic support, and unresolved links without making another model call. The review dialog shows the score and evidence counts so thinly grounded edits are visible before they are applied.
+
 See [docs/architecture.md](docs/architecture.md) for package boundaries, dependency direction, and extension points.

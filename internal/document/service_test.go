@@ -10,7 +10,7 @@ import (
 func TestProposeSeparatesTargetFromReadOnlyContext(t *testing.T) {
 	repository := &fakeRepository{document: domain.Document{ID: "doc-1", Content: "before TARGET after", Version: 3}}
 	generator := &fakeGenerator{replacement: "REPLACED"}
-	compiler := &fakeCompiler{items: []domain.ContextItem{{Kind: "reference", Title: "Related", Content: "context"}}}
+	compiler := &fakeCompiler{result: domain.CompiledContext{Items: []domain.ContextItem{{Kind: "reference", Title: "Related", Content: "context"}}, Assessment: domain.ContextAssessment{Level: "high", Score: 80}}}
 	service := NewService(repository, generator, compiler, fakeIndexer{}, func() string { return "patch-1" }, func() string { return "now" })
 
 	patch, err := service.Propose(context.Background(), ProposeInput{DocumentID: "doc-1", Version: 3, Selection: domain.Selection{Start: 7, End: 13}, Instruction: "rewrite", UseContext: true})
@@ -58,10 +58,10 @@ func (f *fakeGenerator) Generate(_ context.Context, input GenerateInput) (string
 }
 func (f *fakeGenerator) Health(context.Context) string { return "connected" }
 
-type fakeCompiler struct{ items []domain.ContextItem }
+type fakeCompiler struct{ result domain.CompiledContext }
 
-func (f *fakeCompiler) Compile(context.Context, domain.Document, domain.Selection, string) ([]domain.ContextItem, error) {
-	return f.items, nil
+func (f *fakeCompiler) Compile(context.Context, domain.Document, domain.Selection, string) (domain.CompiledContext, error) {
+	return f.result, nil
 }
 
 type fakeIndexer struct{}

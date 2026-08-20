@@ -40,23 +40,23 @@ func New(workspace WorkspaceReader, maxCharacters int, semantic ...SemanticRetri
 }
 
 // Compile resolves structural and explicit workspace relationships without a model call.
-func (c *Compiler) Compile(ctx context.Context, document domain.Document, selection domain.Selection, instruction string) ([]domain.ContextItem, error) {
+func (c *Compiler) Compile(ctx context.Context, document domain.Document, selection domain.Selection, instruction string) (domain.CompiledContext, error) {
 	start, end, err := selection.ByteRange(document.Content)
 	if err != nil {
-		return nil, err
+		return domain.CompiledContext{}, err
 	}
 	sections, err := c.workspace.ListIndexedSections(ctx)
 	if err != nil {
-		return nil, err
+		return domain.CompiledContext{}, err
 	}
 	links, err := c.workspace.ListIndexedLinks(ctx)
 	if err != nil {
-		return nil, err
+		return domain.CompiledContext{}, err
 	}
 	current := documentSections(sections, document.ID)
 	selected := containingSection(current, start, end)
 	if selected == nil {
-		return nil, nil
+		return domain.CompiledContext{Assessment: assess(nil, 0)}, nil
 	}
 
 	items := make([]domain.ContextItem, 0)
@@ -84,10 +84,13 @@ func (c *Compiler) Compile(ctx context.Context, document domain.Document, select
 	for _, ancestor := range ancestors(current, *selected) {
 		add(ancestor, "ancestor", true)
 	}
+	unresolved := 0
 	for _, link := range links {
 		if link.SourceSectionID == selected.ID {
 			if target, ok := resolveTarget(sections, document.ID, link); ok {
 				add(target, "reference", false)
+			} else {
+				unresolved++
 			}
 		}
 	}
@@ -116,7 +119,51 @@ func (c *Compiler) Compile(ctx context.Context, document domain.Document, select
 			}
 		}
 	}
-	return items, nil
+	return domain.CompiledContext{Items: items, Assessment: assess(items, unresolved)}, nil
+}
+
+func assess(items []domain.ContextItem, unresolved int) domain.ContextAssessment {
+	assessment := domain.ContextAssessment{Unresolved: unresolved}
+	semanticScore := 0.0
+	for _, item := range items {
+		switch item.Kind {
+		case "ancestor":
+			assessment.Structural++
+		case "reference", "backlink":
+			assessment.Explicit++
+		case "semantic":
+			assessment.Semantic++
+			semanticScore += item.Score
+		}
+	}
+	score := 30
+	if assessment.Structural > 0 {
+		score += 15
+	}
+	score += min(assessment.Explicit*20, 35)
+	if assessment.Semantic > 0 {
+		average := semanticScore / float64(assessment.Semantic)
+		if average >= .85 {
+			score += 25
+		} else {
+			score += 15
+		}
+	}
+	score -= min(unresolved*15, 30)
+	assessment.Score = max(0, min(score, 100))
+	assessment.Level = "low"
+	if assessment.Score >= 70 {
+		assessment.Level = "high"
+	} else if assessment.Score >= 45 {
+		assessment.Level = "medium"
+	}
+	assessment.Summary = "Limited supporting context"
+	if assessment.Level == "high" {
+		assessment.Summary = "Strong workspace support"
+	} else if assessment.Level == "medium" {
+		assessment.Summary = "Review supporting context"
+	}
+	return assessment
 }
 
 func documentSections(sections []domain.IndexedSection, documentID string) []domain.IndexedSection {
