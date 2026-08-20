@@ -44,7 +44,7 @@ func main() {
 	dist, _ := fs.Sub(web, "dist")
 	handler := httpapi.New(service, httpapi.LLMInfo{Provider: modelConfig.Provider, Model: modelConfig.Model, BaseURL: modelConfig.BaseURL}).Router(dist)
 	addr := "127.0.0.1:" + env("PORT", "4173")
-	log.Printf("DocPatch %s · %s/%s · %s", addr, modelConfig.Provider, modelConfig.Model, modelConfig.BaseURL)
+	log.Printf("Stellarity %s · %s/%s · %s", addr, modelConfig.Provider, modelConfig.Model, modelConfig.BaseURL)
 	log.Fatal(http.ListenAndServe(addr, handler))
 }
 

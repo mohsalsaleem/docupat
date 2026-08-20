@@ -1,8 +1,8 @@
-# DocPatch
+# Stellarity
 
-Code-editor-style AI patches for technical Markdown documents, with Mermaid diagrams and durable SQLite history. The model may read document context, but the Go backend only permits it to replace the explicitly selected range.
+An AI-assisted technical-document workspace for precise, reviewable Markdown changes, Mermaid diagrams, and durable SQLite history. The model may read document context, but the Go backend only permits it to replace the explicitly selected range.
 
-<img src="./docs/assets/docpatch-demo.gif" alt="DocPatch focused editing workflow" width="100%">
+<img src="./docs/assets/docpatch-demo.gif" alt="Stellarity focused editing workflow" width="100%">
 
 ## Run
 
@@ -26,7 +26,7 @@ For frontend development, run the Go API and `pnpm dev` in separate terminals. V
 
 ## Model configuration
 
-DocPatch supports OpenAI-compatible APIs—including local `llama-server`—and Anthropic. Configuration is environment-based:
+Stellarity supports OpenAI-compatible APIs—including local `llama-server`—and Anthropic. Configuration is environment-based:
 
 | Variable | Description |
 | --- | --- |
@@ -55,6 +55,6 @@ pnpm coverage
 
 `pnpm coverage` runs the internal backend suite with cross-package instrumentation and fails when statement coverage drops below 80%. The current suite covers document workflows through the HTTP boundary, real SQLite persistence, scoped-patch invariants, and both model-provider adapters.
 
-Documents, immutable revisions, and patch proposals are stored in `data/docpatch.db`. DocPatch sends the selected text and, when enabled, the rest of the document as read-only context to the configured model provider. With the default local configuration, no document data is sent to a hosted service.
+Documents, immutable revisions, and patch proposals are stored in `data/docpatch.db`. Stellarity sends the selected text and, when enabled, the rest of the document as read-only context to the configured model provider. With the default local configuration, no document data is sent to a hosted service.
 
 See [docs/architecture.md](docs/architecture.md) for package boundaries, dependency direction, and extension points.

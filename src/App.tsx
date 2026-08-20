@@ -1,18 +1,27 @@
+import { useState } from 'octane';
 import { useDocPatch } from './app/useDocPatch';
 import { Workspace } from './features/editor';
-import { AppHeader, Sidebar } from './features/navigation';
+import { ActivityRail, AppHeader, DocumentTabs, Sidebar, StatusBar, type NavigationView } from './features/navigation';
 import { PatchComposer } from './features/patches';
 
 export function App() {
   const app = useDocPatch();
-  return <div className="h-screen overflow-hidden bg-[#0b0d10] text-zinc-100">
-    <AppHeader preview={app.preview} dirty={Boolean(app.document && app.draft !== app.document.content)} busy={app.busy} onTogglePreview={() => app.setPreview(!app.preview)} onSave={app.save} />
-    <main className="grid h-[calc(100vh-4rem)] grid-cols-[230px_minmax(0,1fr)]">
-      <Sidebar documents={app.documents} active={app.document} draft={app.draft} patches={app.patches} onOpen={app.open} onSelect={app.chooseSection} />
-      <div className="relative min-w-0 overflow-hidden">
-        <Workspace preview={app.preview} content={app.draft} onChange={app.onDraft} onSelection={app.onSelection} onEditor={app.onEditor} />
-        <PatchComposer selection={app.selection} instruction={app.instruction} useContext={app.useContext} proposal={app.proposal} busy={app.busy} message={app.message} onInstruction={app.setInstruction} onUseContext={app.setUseContext} onPropose={app.propose} onApply={app.apply} onReject={app.reject} />
-      </div>
+  const [navigationView, setNavigationView] = useState<NavigationView>('files');
+  const dirty = Boolean(app.document && app.draft !== app.document.content);
+  const selected = Math.max(0, app.selection.end - app.selection.start);
+  return <div className="flex h-screen flex-col overflow-hidden bg-[var(--surface-0)] text-zinc-100">
+    <AppHeader preview={app.preview} dirty={dirty} busy={app.busy} onTogglePreview={() => app.setPreview(!app.preview)} onSave={app.save} />
+    <main className="grid min-h-0 flex-1 grid-cols-[44px_250px_minmax(0,1fr)]">
+      <ActivityRail active={navigationView} onChange={setNavigationView} />
+      <Sidebar view={navigationView} documents={app.documents} active={app.document} draft={app.draft} patches={app.patches} onOpen={app.open} onSelect={app.chooseSection} />
+      <section className="flex min-w-0 flex-col overflow-hidden">
+        <DocumentTabs document={app.document} dirty={dirty} />
+        <div className="relative min-h-0 flex-1 overflow-hidden">
+          <Workspace preview={app.preview} content={app.draft} onChange={app.onDraft} onSelection={app.onSelection} onEditor={app.onEditor} />
+          <PatchComposer selection={app.selection} instruction={app.instruction} useContext={app.useContext} proposal={app.proposal} busy={app.busy} message={app.message} onInstruction={app.setInstruction} onUseContext={app.setUseContext} onPropose={app.propose} onApply={app.apply} onReject={app.reject} />
+        </div>
+      </section>
     </main>
+    <StatusBar version={app.document?.version} selected={selected} busy={app.busy} message={app.message} />
   </div>;
 }
