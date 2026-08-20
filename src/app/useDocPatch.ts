@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'octane';
 import type { EditorView } from '@codemirror/view';
-import { documentApi, type Document, type Patch } from '../features/documents';
+import { documentApi, type Document, type Patch, type DocumentTemplate } from '../features/documents';
 import { replaceEditorContent } from '../features/editor/codeMirror';
 
 export function useDocPatch() {
@@ -46,6 +46,12 @@ export function useDocPatch() {
       setMessage(`Saved version ${saved.version}.`);
     });
   }
+
+  async function create(title:string, template:DocumentTemplate) {
+    await run(async()=>{ const next=await documentApi.create(title,template.content(title)); setDocuments(await documentApi.list()); await open(next.id); setMessage(`Created ${template.name}.`); });
+  }
+
+  useEffect(()=>{ if(!document||draft===document.content||busy)return; const timer=setTimeout(()=>save(),1200); return()=>clearTimeout(timer); },[draft,document?.id,document?.version,busy]);
 
   async function propose() {
     if (!document || !(selection.end > selection.start) || !instruction.trim()) return;
@@ -96,7 +102,7 @@ export function useDocPatch() {
 
   return {
     documents, document, draft, selection, instruction, useContext, proposal, patches, busy, message, preview,
-    open, save, propose, apply, reject, chooseSection,
+    open, create, save, propose, apply, reject, chooseSection,
     onEditor: (view: EditorView | null) => { editor.current = view; },
     onSelection: (start: number, end: number) => setSelection({ start, end }),
     onDraft: setDraft,

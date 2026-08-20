@@ -4,6 +4,7 @@ import type { Document, Patch } from './types';
 export const documentApi = {
   list: () => requestJSON<Document[]>('/api/documents'),
   get: (id: string) => requestJSON<Document>(`/api/documents/${id}`),
+  create: (title:string,content:string) => requestJSON<Document>('/api/documents',{method:'POST',body:JSON.stringify({title,content})}),
   save: (document: Document) => requestJSON<Document>(`/api/documents/${document.id}`, {
     method: 'PUT',
     body: JSON.stringify({ title: document.title, content: document.content, version: document.version }),

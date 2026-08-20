@@ -20,7 +20,7 @@ Open <http://127.0.0.1:4173>. By default the app connects to `http://127.0.0.1:8
 LLM_BASE_URL=http://127.0.0.1:8080 LLM_MODEL=local-model PORT=4173 go run .
 ```
 
-Click a heading in the outline or highlight Markdown, write an instruction, and review the proposed diff before applying it.
+Use the workspace `+` to start from a PRD, HLD, ADR, or blank Markdown template. Documents open immediately and autosave after a short pause. Click a heading in the outline or highlight Markdown, write an instruction, and review the proposed diff before applying it.
 
 For frontend development, run the Go API and `pnpm dev` in separate terminals. Vite runs on port 5173 and proxies `/api` to Go on port 4173.
 
