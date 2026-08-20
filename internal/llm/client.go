@@ -197,9 +197,17 @@ func nonEmpty(value string) (string, error) {
 func buildPrompt(input document.GenerateInput) string {
 	var prompt strings.Builder
 	prompt.WriteString("Rewrite ONLY the TARGET markdown. Return only replacement markdown with no fences around the response, no commentary, and no diff markers. Preserve unaffected wording and existing headings. If TARGET contains a Mermaid fence, keep the fence and produce valid Mermaid syntax.\n\n")
-	if input.ReadOnly != "" {
+	if len(input.Context) > 0 {
 		prompt.WriteString("READ-ONLY CONTEXT (cannot be edited):\n")
-		prompt.WriteString(input.ReadOnly)
+		for _, item := range input.Context {
+			prompt.WriteString("--- ")
+			prompt.WriteString(item.Kind)
+			prompt.WriteString(": ")
+			prompt.WriteString(item.Title)
+			prompt.WriteString(" ---\n")
+			prompt.WriteString(item.Content)
+			prompt.WriteString("\n")
+		}
 		prompt.WriteString("\n\n")
 	}
 	prompt.WriteString("TARGET:\n")

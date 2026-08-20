@@ -9,6 +9,12 @@ export interface Document {
 
 export type PatchStatus = 'proposed' | 'applied' | 'rejected';
 
+export interface ContextItem {
+  kind: 'ancestor' | 'reference' | 'backlink';
+  title: string;
+  content: string;
+}
+
 export interface Patch {
   id: string;
   documentId: string;
@@ -21,4 +27,5 @@ export interface Patch {
   status: PatchStatus;
   createdAt: string;
   appliedAt?: string;
+  context: ContextItem[];
 }

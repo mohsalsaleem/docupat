@@ -1,6 +1,6 @@
 # Stellarity
 
-An AI-assisted technical-document workspace for precise, reviewable Markdown changes, Mermaid diagrams, and durable SQLite history. The model may read document context, but the Go backend only permits it to replace the explicitly selected range.
+An AI-assisted technical-document workspace for precise, reviewable Markdown changes, Mermaid diagrams, and durable SQLite history. Stellarity compiles focused context from document structure and explicit links, while the Go backend only permits the model to replace the explicitly selected range.
 
 <img src="./docs/assets/docpatch-demo.gif" alt="Stellarity focused editing workflow" width="100%">
 
@@ -55,6 +55,6 @@ pnpm coverage
 
 `pnpm coverage` runs the internal backend suite with cross-package instrumentation and fails when statement coverage drops below 80%. The current suite covers document workflows through the HTTP boundary, real SQLite persistence, scoped-patch invariants, and both model-provider adapters.
 
-Documents, immutable revisions, and patch proposals are stored in `data/docpatch.db`. Stellarity sends the selected text and, when enabled, the rest of the document as read-only context to the configured model provider. With the default local configuration, no document data is sent to a hosted service.
+Documents, immutable revisions, patch proposals, and their context manifests are stored in `data/docpatch.db`. When focused context is enabled, Stellarity deterministically resolves ancestor headings, Markdown anchor links, wiki links, and backlinks within a 6,000-character budget. Only those sources and the selected target are sent to the configured provider. Context compilation itself uses no model tokens. With the default local configuration, no document data is sent to a hosted service.
 
 See [docs/architecture.md](docs/architecture.md) for package boundaries, dependency direction, and extension points.

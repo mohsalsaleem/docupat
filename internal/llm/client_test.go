@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"docpatch/internal/document"
+	"docpatch/internal/domain"
 )
 
 func TestOpenAICompatibleProvider(t *testing.T) {
@@ -131,7 +132,7 @@ func TestProviderErrors(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err = client.Generate(context.Background(), document.GenerateInput{Target: "target", ReadOnly: "context", Instruction: "rewrite"}); err == nil {
+			if _, err = client.Generate(context.Background(), document.GenerateInput{Target: "target", Context: []domain.ContextItem{{Kind: "reference", Title: "Related", Content: "context"}}, Instruction: "rewrite"}); err == nil {
 				t.Fatal("expected provider error")
 			}
 		})

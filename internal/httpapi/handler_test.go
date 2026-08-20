@@ -11,6 +11,7 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"docpatch/internal/contextcompile"
 	"docpatch/internal/document"
 	"docpatch/internal/domain"
 	"docpatch/internal/storage"
@@ -116,7 +117,7 @@ func testHandler(t *testing.T) (http.Handler, func()) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := document.NewService(repository, stubGenerator{}, func() string {
+	service := document.NewService(repository, stubGenerator{}, contextcompile.New(6000), func() string {
 		nextID++
 		return "patch-" + string(rune('a'+nextID))
 	}, func() string { return "2026-01-01T00:00:00Z" })

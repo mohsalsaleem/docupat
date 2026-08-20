@@ -10,7 +10,8 @@ import (
 func TestProposeSeparatesTargetFromReadOnlyContext(t *testing.T) {
 	repository := &fakeRepository{document: domain.Document{ID: "doc-1", Content: "before TARGET after", Version: 3}}
 	generator := &fakeGenerator{replacement: "REPLACED"}
-	service := NewService(repository, generator, func() string { return "patch-1" }, func() string { return "now" })
+	compiler := &fakeCompiler{items: []domain.ContextItem{{Kind: "reference", Title: "Related", Content: "context"}}}
+	service := NewService(repository, generator, compiler, func() string { return "patch-1" }, func() string { return "now" })
 
 	patch, err := service.Propose(context.Background(), ProposeInput{DocumentID: "doc-1", Version: 3, Selection: domain.Selection{Start: 7, End: 13}, Instruction: "rewrite", UseContext: true})
 	if err != nil {
@@ -19,17 +20,20 @@ func TestProposeSeparatesTargetFromReadOnlyContext(t *testing.T) {
 	if generator.input.Target != "TARGET" {
 		t.Fatalf("target = %q", generator.input.Target)
 	}
-	if generator.input.ReadOnly != "before \n[…]\n after" {
-		t.Fatalf("context = %q", generator.input.ReadOnly)
+	if len(generator.input.Context) != 1 || generator.input.Context[0].Content != "context" {
+		t.Fatalf("context = %#v", generator.input.Context)
 	}
 	if patch.Original != "TARGET" || patch.Replacement != "REPLACED" || repository.patch.ID != "patch-1" {
 		t.Fatalf("unexpected patch: %+v", patch)
+	}
+	if len(patch.Context) != 1 || len(repository.patch.Context) != 1 {
+		t.Fatalf("compiled context was not persisted on patch: %+v", patch.Context)
 	}
 }
 
 func TestProposeRejectsStaleDocumentVersion(t *testing.T) {
 	repository := &fakeRepository{document: domain.Document{ID: "doc-1", Content: "target", Version: 2}}
-	service := NewService(repository, &fakeGenerator{}, func() string { return "id" }, func() string { return "now" })
+	service := NewService(repository, &fakeGenerator{}, &fakeCompiler{}, func() string { return "id" }, func() string { return "now" })
 	_, err := service.Propose(context.Background(), ProposeInput{DocumentID: "doc-1", Version: 1, Selection: domain.Selection{Start: 0, End: 6}, Instruction: "rewrite"})
 	if err != domain.ErrConflict {
 		t.Fatalf("expected conflict, got %v", err)
@@ -53,6 +57,12 @@ func (f *fakeGenerator) Generate(_ context.Context, input GenerateInput) (string
 	return f.replacement, nil
 }
 func (f *fakeGenerator) Health(context.Context) string { return "connected" }
+
+type fakeCompiler struct{ items []domain.ContextItem }
+
+func (f *fakeCompiler) Compile(string, domain.Selection) ([]domain.ContextItem, error) {
+	return f.items, nil
+}
 
 type fakeRepository struct {
 	document domain.Document

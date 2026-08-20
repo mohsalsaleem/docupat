@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"docpatch/internal/contextcompile"
 	"docpatch/internal/document"
 	"docpatch/internal/httpapi"
 	"docpatch/internal/llm"
@@ -40,7 +41,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	service := document.NewService(repository, model, newID, now)
+	service := document.NewService(repository, model, contextcompile.New(6000), newID, now)
 	dist, _ := fs.Sub(web, "dist")
 	handler := httpapi.New(service, httpapi.LLMInfo{Provider: modelConfig.Provider, Model: modelConfig.Model, BaseURL: modelConfig.BaseURL}).Router(dist)
 	addr := "127.0.0.1:" + env("PORT", "4173")

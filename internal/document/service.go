@@ -24,9 +24,13 @@ type Generator interface {
 	Health(context.Context) string
 }
 
+type ContextCompiler interface {
+	Compile(content string, selection domain.Selection) ([]domain.ContextItem, error)
+}
+
 type GenerateInput struct {
 	Target      string
-	ReadOnly    string
+	Context     []domain.ContextItem
 	Instruction string
 }
 
@@ -36,12 +40,13 @@ type Clock func() string
 type Service struct {
 	repository Repository
 	generator  Generator
+	compiler   ContextCompiler
 	newID      IDGenerator
 	now        Clock
 }
 
-func NewService(repository Repository, generator Generator, newID IDGenerator, now Clock) *Service {
-	return &Service{repository: repository, generator: generator, newID: newID, now: now}
+func NewService(repository Repository, generator Generator, compiler ContextCompiler, newID IDGenerator, now Clock) *Service {
+	return &Service{repository: repository, generator: generator, compiler: compiler, newID: newID, now: now}
 }
 
 func (s *Service) List(ctx context.Context) ([]domain.Document, error) {
@@ -99,18 +104,21 @@ func (s *Service) Propose(ctx context.Context, input ProposeInput) (domain.Patch
 		return domain.Patch{}, err
 	}
 	target := doc.Content[start:end]
-	readOnly := ""
+	var compiled []domain.ContextItem
 	if input.UseContext {
-		readOnly = doc.Content[:start] + "\n[…]\n" + doc.Content[end:]
+		compiled, err = s.compiler.Compile(doc.Content, input.Selection)
+		if err != nil {
+			return domain.Patch{}, err
+		}
 	}
-	replacement, err := s.generator.Generate(ctx, GenerateInput{Target: target, ReadOnly: readOnly, Instruction: input.Instruction})
+	replacement, err := s.generator.Generate(ctx, GenerateInput{Target: target, Context: compiled, Instruction: input.Instruction})
 	if err != nil {
 		return domain.Patch{}, err
 	}
 	if strings.TrimSpace(replacement) == "" {
 		return domain.Patch{}, errors.New("model returned no replacement")
 	}
-	p := domain.Patch{ID: s.newID(), DocumentID: doc.ID, BaseVersion: doc.Version, Start: input.Selection.Start, End: input.Selection.End, Original: target, Replacement: preserveBoundaryWhitespace(target, replacement), Instruction: input.Instruction, Status: "proposed", CreatedAt: s.now()}
+	p := domain.Patch{ID: s.newID(), DocumentID: doc.ID, BaseVersion: doc.Version, Start: input.Selection.Start, End: input.Selection.End, Original: target, Replacement: preserveBoundaryWhitespace(target, replacement), Instruction: input.Instruction, Status: "proposed", CreatedAt: s.now(), Context: compiled}
 	if err := s.repository.CreatePatch(ctx, p); err != nil {
 		return domain.Patch{}, err
 	}

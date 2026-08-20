@@ -1,6 +1,7 @@
 import type { Patch } from '../../documents/types';
 import { Button, Dialog } from '../../../ui';
 import { DiffView } from './DiffView';
+import { ContextSummary } from './ContextSummary';
 
 interface PatchPanelProps { selection:{start:number;end:number};instruction:string;useContext:boolean;proposal:Patch|null;busy:boolean;message:string;onInstruction:(value:string)=>void;onUseContext:(value:boolean)=>void;onPropose:()=>void;onApply:()=>void;onReject:()=>void }
 
@@ -16,7 +17,7 @@ export function PatchComposer(props: PatchPanelProps) {
         </div>
         <div className="flex items-center justify-between px-3 pb-1 text-[11px] text-zinc-500">
           <span>{selected ? `${props.selection.end - props.selection.start} characters selected` : props.message}</span>
-          <label className="flex items-center gap-2"><input type="checkbox" checked={props.useContext} onChange={(event) => props.onUseContext(event.currentTarget.checked)} className="accent-lime-300" />Read document context</label>
+          <label className="flex items-center gap-2"><input type="checkbox" checked={props.useContext} onChange={(event) => props.onUseContext(event.currentTarget.checked)} className="accent-lime-300" />Build focused context</label>
         </div>
       </div>
     </div>
@@ -26,6 +27,7 @@ export function PatchComposer(props: PatchPanelProps) {
 
 function Proposal(props:{proposal:Patch;busy:boolean;onApply:()=>void;onReject:()=>void}) {
   return <Dialog title="Review focused edit" description="Only the selected text will change" badge="SCOPED PATCH" busy={props.busy} confirmLabel="Apply change" dismissLabel="Discard" onConfirm={props.onApply} onDismiss={props.onReject}>
+    <ContextSummary items={props.proposal.context ?? []} />
     <DiffView before={props.proposal.original} after={props.proposal.replacement} />
   </Dialog>;
 }

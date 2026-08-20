@@ -20,17 +20,24 @@ type Document struct {
 }
 
 type Patch struct {
-	ID          string  `json:"id"`
-	DocumentID  string  `json:"documentId"`
-	BaseVersion int     `json:"baseVersion"`
-	Start       int     `json:"start"`
-	End         int     `json:"end"`
-	Original    string  `json:"original"`
-	Replacement string  `json:"replacement"`
-	Instruction string  `json:"instruction"`
-	Status      string  `json:"status"`
-	CreatedAt   string  `json:"createdAt"`
-	AppliedAt   *string `json:"appliedAt"`
+	ID          string        `json:"id"`
+	DocumentID  string        `json:"documentId"`
+	BaseVersion int           `json:"baseVersion"`
+	Start       int           `json:"start"`
+	End         int           `json:"end"`
+	Original    string        `json:"original"`
+	Replacement string        `json:"replacement"`
+	Instruction string        `json:"instruction"`
+	Status      string        `json:"status"`
+	CreatedAt   string        `json:"createdAt"`
+	AppliedAt   *string       `json:"appliedAt"`
+	Context     []ContextItem `json:"context"`
+}
+
+type ContextItem struct {
+	Kind    string `json:"kind"`
+	Title   string `json:"title"`
+	Content string `json:"content"`
 }
 
 type Selection struct {
