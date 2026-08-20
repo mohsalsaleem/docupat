@@ -1,170 +1,193 @@
 package contextcompile
 
 import (
-	"regexp"
+	"context"
+	"path/filepath"
+	"sort"
 	"strings"
-	"unicode"
 
 	"docpatch/internal/domain"
+	"docpatch/internal/markdownindex"
 )
 
 const defaultBudget = 6000
 
-var (
-	headingPattern = regexp.MustCompile(`(?m)^(#{1,6})[ \t]+(.+?)[ \t]*$`)
-	wikiPattern    = regexp.MustCompile(`\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]`)
-	anchorPattern  = regexp.MustCompile(`\[[^\]]+\]\(#([^)]+)\)`)
-)
-
-type Compiler struct{ MaxCharacters int }
-
-type section struct {
-	title      string
-	level      int
-	start, end int
-	headingEnd int
-	content    string
+type WorkspaceReader interface {
+	ListIndexedSections(context.Context) ([]domain.IndexedSection, error)
+	ListIndexedLinks(context.Context) ([]domain.IndexedLink, error)
 }
 
-func New(maxCharacters int) *Compiler {
+type Compiler struct {
+	workspace     WorkspaceReader
+	MaxCharacters int
+}
+
+func New(workspace WorkspaceReader, maxCharacters int) *Compiler {
 	if maxCharacters <= 0 {
 		maxCharacters = defaultBudget
 	}
-	return &Compiler{MaxCharacters: maxCharacters}
+	return &Compiler{workspace: workspace, MaxCharacters: maxCharacters}
 }
 
-// Compile builds deterministic context from Markdown structure and explicit links.
-// It deliberately performs no model calls and never includes the selected range.
-func (c *Compiler) Compile(content string, selection domain.Selection) ([]domain.ContextItem, error) {
-	start, end, err := selection.ByteRange(content)
+// Compile resolves structural and explicit workspace relationships without a model call.
+func (c *Compiler) Compile(ctx context.Context, document domain.Document, selection domain.Selection) ([]domain.ContextItem, error) {
+	start, end, err := selection.ByteRange(document.Content)
 	if err != nil {
 		return nil, err
 	}
-	sections := parseSections(content)
-	selected := containingSection(sections, start, end)
+	sections, err := c.workspace.ListIndexedSections(ctx)
+	if err != nil {
+		return nil, err
+	}
+	links, err := c.workspace.ListIndexedLinks(ctx)
+	if err != nil {
+		return nil, err
+	}
+	current := documentSections(sections, document.ID)
+	selected := containingSection(current, start, end)
+	if selected == nil {
+		return nil, nil
+	}
+
 	items := make([]domain.ContextItem, 0)
-	seen := map[int]bool{}
+	seen := map[string]bool{selected.ID: true}
 	remaining := c.MaxCharacters
-	add := func(index int, kind, body string) {
-		if index < 0 || seen[index] || remaining <= 0 {
+	add := func(section domain.IndexedSection, kind string, headingOnly bool) {
+		if seen[section.ID] || remaining <= 0 {
 			return
 		}
-		body = strings.TrimSpace(body)
+		body := strings.TrimSpace(section.Content)
+		if headingOnly {
+			if newline := strings.IndexByte(body, '\n'); newline >= 0 {
+				body = body[:newline]
+			}
+		}
+		body = truncate(body, remaining)
 		if body == "" {
 			return
 		}
-		if len(body) > remaining {
-			body = body[:remaining]
-		}
-		seen[index] = true
+		seen[section.ID] = true
 		remaining -= len(body)
-		items = append(items, domain.ContextItem{Kind: kind, Title: sections[index].title, Content: body})
+		items = append(items, domain.ContextItem{Kind: kind, Title: section.Title, DocumentID: section.DocumentID, DocumentTitle: section.DocumentTitle, SectionID: section.ID, Content: body})
 	}
 
-	if selected >= 0 {
-		for _, index := range ancestors(sections, selected) {
-			add(index, "ancestor", content[sections[index].start:sections[index].headingEnd])
+	for _, ancestor := range ancestors(current, *selected) {
+		add(ancestor, "ancestor", true)
+	}
+	for _, link := range links {
+		if link.SourceSectionID == selected.ID {
+			if target, ok := resolveTarget(sections, document.ID, link); ok {
+				add(target, "reference", false)
+			}
 		}
 	}
-
-	target := content[start:end]
-	for _, reference := range references(target) {
-		if index := findSection(sections, reference); index >= 0 && index != selected {
-			add(index, "reference", sections[index].content)
-		}
-	}
-
-	if selected >= 0 {
-		selectedSlug := slug(sections[selected].title)
-		for index, candidate := range sections {
-			if index != selected && containsReference(candidate.content, selectedSlug) {
-				add(index, "backlink", candidate.content)
+	for _, link := range links {
+		if target, ok := resolveTarget(sections, sourceDocument(sections, link.SourceSectionID), link); ok && target.ID == selected.ID {
+			if source, found := sectionByID(sections, link.SourceSectionID); found {
+				add(source, "backlink", false)
 			}
 		}
 	}
 	return items, nil
 }
 
-func parseSections(content string) []section {
-	matches := headingPattern.FindAllStringSubmatchIndex(content, -1)
-	result := make([]section, 0, len(matches))
-	for i, match := range matches {
-		level := match[3] - match[2]
-		end := len(content)
-		for j := i + 1; j < len(matches); j++ {
-			if matches[j][3]-matches[j][2] <= level {
-				end = matches[j][0]
-				break
-			}
+func documentSections(sections []domain.IndexedSection, documentID string) []domain.IndexedSection {
+	result := make([]domain.IndexedSection, 0)
+	for _, section := range sections {
+		if section.DocumentID == documentID {
+			result = append(result, section)
 		}
-		result = append(result, section{title: strings.TrimSpace(content[match[4]:match[5]]), level: level, start: match[0], headingEnd: match[1], end: end, content: content[match[0]:end]})
 	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Start < result[j].Start })
 	return result
 }
 
-func containingSection(sections []section, start, end int) int {
-	best := -1
-	for i, candidate := range sections {
-		if candidate.start <= start && candidate.end >= end && (best < 0 || candidate.level >= sections[best].level) {
-			best = i
+func containingSection(sections []domain.IndexedSection, start, end int) *domain.IndexedSection {
+	var best *domain.IndexedSection
+	for index := range sections {
+		candidate := &sections[index]
+		if candidate.Start <= start && candidate.End >= end && (best == nil || candidate.Level >= best.Level) {
+			best = candidate
 		}
 	}
 	return best
 }
 
-func ancestors(sections []section, selected int) []int {
-	result := []int{}
-	level := sections[selected].level
-	for i := selected - 1; i >= 0 && level > 1; i-- {
-		if sections[i].level < level {
-			result = append([]int{i}, result...)
-			level = sections[i].level
+func ancestors(sections []domain.IndexedSection, selected domain.IndexedSection) []domain.IndexedSection {
+	result := []domain.IndexedSection{}
+	level := selected.Level
+	for i := len(sections) - 1; i >= 0; i-- {
+		candidate := sections[i]
+		if candidate.Start >= selected.Start || candidate.Level >= level {
+			continue
 		}
+		result = append([]domain.IndexedSection{candidate}, result...)
+		level = candidate.Level
 	}
 	return result
 }
 
-func references(content string) []string {
-	result := []string{}
-	for _, match := range wikiPattern.FindAllStringSubmatch(content, -1) {
-		result = append(result, match[1])
-	}
-	for _, match := range anchorPattern.FindAllStringSubmatch(content, -1) {
-		result = append(result, match[1])
-	}
-	return result
-}
-
-func findSection(sections []section, reference string) int {
-	wanted := slug(reference)
-	for i, candidate := range sections {
-		if slug(candidate.title) == wanted {
-			return i
+func resolveTarget(sections []domain.IndexedSection, sourceDocumentID string, link domain.IndexedLink) (domain.IndexedSection, bool) {
+	documentID := sourceDocumentID
+	heading := link.TargetHeading
+	if link.TargetDocument != "" {
+		if matched := findDocument(sections, link.TargetDocument); matched != "" {
+			documentID = matched
+		} else if heading == "" {
+			heading = link.TargetDocument
 		}
 	}
-	return -1
-}
-
-func containsReference(content, wanted string) bool {
-	for _, reference := range references(content) {
-		if slug(reference) == wanted {
-			return true
+	candidates := documentSections(sections, documentID)
+	if heading != "" {
+		wanted := markdownindex.Slug(heading)
+		for _, section := range candidates {
+			if section.Slug == wanted {
+				return section, true
+			}
 		}
 	}
-	return false
+	if len(candidates) > 0 && (link.TargetDocument != "" || heading == "") {
+		return candidates[0], true
+	}
+	return domain.IndexedSection{}, false
 }
 
-func slug(value string) string {
-	var result strings.Builder
-	dash := false
-	for _, r := range strings.ToLower(strings.TrimSpace(value)) {
-		if unicode.IsLetter(r) || unicode.IsDigit(r) {
-			result.WriteRune(r)
-			dash = false
-		} else if !dash && result.Len() > 0 {
-			result.WriteByte('-')
-			dash = true
+func findDocument(sections []domain.IndexedSection, target string) string {
+	wanted := markdownindex.Slug(strings.TrimSuffix(filepath.Base(target), filepath.Ext(target)))
+	for _, section := range sections {
+		if markdownindex.Slug(section.DocumentTitle) == wanted || markdownindex.Slug(section.DocumentID) == wanted {
+			return section.DocumentID
 		}
 	}
-	return strings.Trim(result.String(), "-")
+	return ""
+}
+
+func sourceDocument(sections []domain.IndexedSection, sectionID string) string {
+	if section, ok := sectionByID(sections, sectionID); ok {
+		return section.DocumentID
+	}
+	return ""
+}
+
+func sectionByID(sections []domain.IndexedSection, id string) (domain.IndexedSection, bool) {
+	for _, section := range sections {
+		if section.ID == id {
+			return section, true
+		}
+	}
+	return domain.IndexedSection{}, false
+}
+
+func truncate(value string, limit int) string {
+	if len(value) <= limit {
+		return value
+	}
+	end := 0
+	for index := range value {
+		if index > limit {
+			break
+		}
+		end = index
+	}
+	return value[:end]
 }

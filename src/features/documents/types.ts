@@ -12,6 +12,9 @@ export type PatchStatus = 'proposed' | 'applied' | 'rejected';
 export interface ContextItem {
   kind: 'ancestor' | 'reference' | 'backlink';
   title: string;
+  documentId: string;
+  documentTitle: string;
+  sectionId: string;
   content: string;
 }
 

@@ -17,6 +17,9 @@ type Repository interface {
 	CreatePatch(context.Context, domain.Patch) error
 	ApplyPatch(context.Context, string) (domain.Document, error)
 	RejectPatch(context.Context, string) error
+	ReplaceDocumentIndex(context.Context, domain.DocumentIndex) error
+	ListIndexedSections(context.Context) ([]domain.IndexedSection, error)
+	ListIndexedLinks(context.Context) ([]domain.IndexedLink, error)
 }
 
 type Generator interface {
@@ -25,7 +28,11 @@ type Generator interface {
 }
 
 type ContextCompiler interface {
-	Compile(content string, selection domain.Selection) ([]domain.ContextItem, error)
+	Compile(context.Context, domain.Document, domain.Selection) ([]domain.ContextItem, error)
+}
+
+type Indexer interface {
+	Index(domain.Document) domain.DocumentIndex
 }
 
 type GenerateInput struct {
@@ -41,12 +48,13 @@ type Service struct {
 	repository Repository
 	generator  Generator
 	compiler   ContextCompiler
+	indexer    Indexer
 	newID      IDGenerator
 	now        Clock
 }
 
-func NewService(repository Repository, generator Generator, compiler ContextCompiler, newID IDGenerator, now Clock) *Service {
-	return &Service{repository: repository, generator: generator, compiler: compiler, newID: newID, now: now}
+func NewService(repository Repository, generator Generator, compiler ContextCompiler, indexer Indexer, newID IDGenerator, now Clock) *Service {
+	return &Service{repository: repository, generator: generator, compiler: compiler, indexer: indexer, newID: newID, now: now}
 }
 
 func (s *Service) List(ctx context.Context) ([]domain.Document, error) {
@@ -59,7 +67,11 @@ func (s *Service) Patches(ctx context.Context, id string) ([]domain.Patch, error
 	return s.repository.ListPatches(ctx, id)
 }
 func (s *Service) Apply(ctx context.Context, id string) (domain.Document, error) {
-	return s.repository.ApplyPatch(ctx, id)
+	doc, err := s.repository.ApplyPatch(ctx, id)
+	if err != nil {
+		return doc, err
+	}
+	return doc, s.index(ctx, doc)
 }
 func (s *Service) Reject(ctx context.Context, id string) error {
 	return s.repository.RejectPatch(ctx, id)
@@ -70,14 +82,43 @@ func (s *Service) Create(ctx context.Context, title, content string) (domain.Doc
 	if strings.TrimSpace(title) == "" {
 		return domain.Document{}, domain.ErrInvalid
 	}
-	return s.repository.CreateDocument(ctx, strings.TrimSpace(title), content)
+	doc, err := s.repository.CreateDocument(ctx, strings.TrimSpace(title), content)
+	if err != nil {
+		return doc, err
+	}
+	return doc, s.index(ctx, doc)
 }
 
 func (s *Service) Save(ctx context.Context, id string, version int, title, content string) (domain.Document, error) {
 	if id == "" || version < 1 || strings.TrimSpace(title) == "" {
 		return domain.Document{}, domain.ErrInvalid
 	}
-	return s.repository.SaveDocument(ctx, id, version, strings.TrimSpace(title), content)
+	doc, err := s.repository.SaveDocument(ctx, id, version, strings.TrimSpace(title), content)
+	if err != nil {
+		return doc, err
+	}
+	return doc, s.index(ctx, doc)
+}
+
+func (s *Service) ReindexAll(ctx context.Context) error {
+	documents, err := s.repository.ListDocuments(ctx)
+	if err != nil {
+		return err
+	}
+	for _, summary := range documents {
+		doc, getErr := s.repository.GetDocument(ctx, summary.ID)
+		if getErr != nil {
+			return getErr
+		}
+		if indexErr := s.index(ctx, doc); indexErr != nil {
+			return indexErr
+		}
+	}
+	return nil
+}
+
+func (s *Service) index(ctx context.Context, doc domain.Document) error {
+	return s.repository.ReplaceDocumentIndex(ctx, s.indexer.Index(doc))
 }
 
 type ProposeInput struct {
@@ -106,7 +147,7 @@ func (s *Service) Propose(ctx context.Context, input ProposeInput) (domain.Patch
 	target := doc.Content[start:end]
 	var compiled []domain.ContextItem
 	if input.UseContext {
-		compiled, err = s.compiler.Compile(doc.Content, input.Selection)
+		compiled, err = s.compiler.Compile(ctx, doc, input.Selection)
 		if err != nil {
 			return domain.Patch{}, err
 		}

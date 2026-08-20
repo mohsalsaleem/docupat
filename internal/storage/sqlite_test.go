@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"docpatch/internal/domain"
+	"docpatch/internal/markdownindex"
 )
 
 func TestPatchContextRoundTrip(t *testing.T) {
@@ -32,5 +33,35 @@ func TestPatchContextRoundTrip(t *testing.T) {
 	}
 	if len(items) != 1 || len(items[0].Context) != 1 || items[0].Context[0].Title != "Architecture" {
 		t.Fatalf("context did not round trip: %#v", items)
+	}
+}
+
+func TestReplaceDocumentIndexOnlyChangesTargetDocument(t *testing.T) {
+	next := 0
+	repository, err := Open(filepath.Join(t.TempDir(), "index.db"), func() string {
+		next++
+		return string(rune('a' + next))
+	}, func() string { return "2026-01-01T00:00:00Z" })
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer repository.Close()
+	first, _ := repository.CreateDocument(context.Background(), "First", "# First\n\n[[Second]]")
+	second, _ := repository.CreateDocument(context.Background(), "Second", "# Second\n")
+	indexer := markdownindex.New()
+	if err := repository.ReplaceDocumentIndex(context.Background(), indexer.Index(first)); err != nil {
+		t.Fatal(err)
+	}
+	if err := repository.ReplaceDocumentIndex(context.Background(), indexer.Index(second)); err != nil {
+		t.Fatal(err)
+	}
+	first.Content = "# First\n\n## Changed\n"
+	if err := repository.ReplaceDocumentIndex(context.Background(), indexer.Index(first)); err != nil {
+		t.Fatal(err)
+	}
+	sections, _ := repository.ListIndexedSections(context.Background())
+	links, _ := repository.ListIndexedLinks(context.Background())
+	if len(sections) != 3 || len(links) != 0 {
+		t.Fatalf("unexpected incremental index: sections=%#v links=%#v", sections, links)
 	}
 }

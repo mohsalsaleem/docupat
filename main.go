@@ -17,6 +17,7 @@ import (
 	"docpatch/internal/document"
 	"docpatch/internal/httpapi"
 	"docpatch/internal/llm"
+	"docpatch/internal/markdownindex"
 	"docpatch/internal/storage"
 )
 
@@ -41,7 +42,11 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	service := document.NewService(repository, model, contextcompile.New(6000), newID, now)
+	indexer := markdownindex.New()
+	service := document.NewService(repository, model, contextcompile.New(repository, 6000), indexer, newID, now)
+	if err = service.ReindexAll(context.Background()); err != nil {
+		log.Fatal(err)
+	}
 	dist, _ := fs.Sub(web, "dist")
 	handler := httpapi.New(service, httpapi.LLMInfo{Provider: modelConfig.Provider, Model: modelConfig.Model, BaseURL: modelConfig.BaseURL}).Router(dist)
 	addr := "127.0.0.1:" + env("PORT", "4173")

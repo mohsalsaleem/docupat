@@ -11,7 +11,7 @@ func TestProposeSeparatesTargetFromReadOnlyContext(t *testing.T) {
 	repository := &fakeRepository{document: domain.Document{ID: "doc-1", Content: "before TARGET after", Version: 3}}
 	generator := &fakeGenerator{replacement: "REPLACED"}
 	compiler := &fakeCompiler{items: []domain.ContextItem{{Kind: "reference", Title: "Related", Content: "context"}}}
-	service := NewService(repository, generator, compiler, func() string { return "patch-1" }, func() string { return "now" })
+	service := NewService(repository, generator, compiler, fakeIndexer{}, func() string { return "patch-1" }, func() string { return "now" })
 
 	patch, err := service.Propose(context.Background(), ProposeInput{DocumentID: "doc-1", Version: 3, Selection: domain.Selection{Start: 7, End: 13}, Instruction: "rewrite", UseContext: true})
 	if err != nil {
@@ -33,7 +33,7 @@ func TestProposeSeparatesTargetFromReadOnlyContext(t *testing.T) {
 
 func TestProposeRejectsStaleDocumentVersion(t *testing.T) {
 	repository := &fakeRepository{document: domain.Document{ID: "doc-1", Content: "target", Version: 2}}
-	service := NewService(repository, &fakeGenerator{}, &fakeCompiler{}, func() string { return "id" }, func() string { return "now" })
+	service := NewService(repository, &fakeGenerator{}, &fakeCompiler{}, fakeIndexer{}, func() string { return "id" }, func() string { return "now" })
 	_, err := service.Propose(context.Background(), ProposeInput{DocumentID: "doc-1", Version: 1, Selection: domain.Selection{Start: 0, End: 6}, Instruction: "rewrite"})
 	if err != domain.ErrConflict {
 		t.Fatalf("expected conflict, got %v", err)
@@ -60,8 +60,14 @@ func (f *fakeGenerator) Health(context.Context) string { return "connected" }
 
 type fakeCompiler struct{ items []domain.ContextItem }
 
-func (f *fakeCompiler) Compile(string, domain.Selection) ([]domain.ContextItem, error) {
+func (f *fakeCompiler) Compile(context.Context, domain.Document, domain.Selection) ([]domain.ContextItem, error) {
 	return f.items, nil
+}
+
+type fakeIndexer struct{}
+
+func (fakeIndexer) Index(document domain.Document) domain.DocumentIndex {
+	return domain.DocumentIndex{DocumentID: document.ID}
 }
 
 type fakeRepository struct {
@@ -92,3 +98,12 @@ func (f *fakeRepository) ApplyPatch(context.Context, string) (domain.Document, e
 	return f.document, nil
 }
 func (f *fakeRepository) RejectPatch(context.Context, string) error { return nil }
+func (f *fakeRepository) ReplaceDocumentIndex(context.Context, domain.DocumentIndex) error {
+	return nil
+}
+func (f *fakeRepository) ListIndexedSections(context.Context) ([]domain.IndexedSection, error) {
+	return nil, nil
+}
+func (f *fakeRepository) ListIndexedLinks(context.Context) ([]domain.IndexedLink, error) {
+	return nil, nil
+}

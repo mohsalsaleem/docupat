@@ -55,6 +55,6 @@ pnpm coverage
 
 `pnpm coverage` runs the internal backend suite with cross-package instrumentation and fails when statement coverage drops below 80%. The current suite covers document workflows through the HTTP boundary, real SQLite persistence, scoped-patch invariants, and both model-provider adapters.
 
-Documents, immutable revisions, patch proposals, and their context manifests are stored in `data/docpatch.db`. When focused context is enabled, Stellarity deterministically resolves ancestor headings, Markdown anchor links, wiki links, and backlinks within a 6,000-character budget. Only those sources and the selected target are sent to the configured provider. Context compilation itself uses no model tokens. With the default local configuration, no document data is sent to a hosted service.
+Documents, immutable revisions, section/link indexes, patch proposals, and their context manifests are stored in `data/docpatch.db`. When focused context is enabled, Stellarity deterministically resolves ancestor headings, Markdown links, wiki links, and backlinks across the workspace within a 6,000-character budget. Only those sources and the selected target are sent to the configured provider. Context compilation itself uses no model tokens. With the default local configuration, no document data is sent to a hosted service.
 
 See [docs/architecture.md](docs/architecture.md) for package boundaries, dependency direction, and extension points.

@@ -35,9 +35,37 @@ type Patch struct {
 }
 
 type ContextItem struct {
-	Kind    string `json:"kind"`
-	Title   string `json:"title"`
-	Content string `json:"content"`
+	Kind          string `json:"kind"`
+	Title         string `json:"title"`
+	DocumentID    string `json:"documentId"`
+	DocumentTitle string `json:"documentTitle"`
+	SectionID     string `json:"sectionId"`
+	Content       string `json:"content"`
+}
+
+type IndexedSection struct {
+	ID            string
+	DocumentID    string
+	DocumentTitle string
+	Title         string
+	Slug          string
+	Level         int
+	Start         int
+	End           int
+	Content       string
+}
+
+type IndexedLink struct {
+	SourceSectionID string
+	TargetDocument  string
+	TargetHeading   string
+	Kind            string
+}
+
+type DocumentIndex struct {
+	DocumentID string
+	Sections   []IndexedSection
+	Links      []IndexedLink
 }
 
 type Selection struct {
