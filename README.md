@@ -65,4 +65,6 @@ Semantic retrieval is an opt-in fallback. When enabled, it runs only if structur
 
 Every generated patch includes a rule-based confidence assessment. Stellarity scores structural ancestry, explicit relationships, semantic support, and unresolved links without making another model call. The review dialog shows the score and evidence counts so thinly grounded edits are visible before they are applied.
 
+Patch review also reports potential downstream impacts. Incoming references, linked Mermaid sections, and high-similarity semantic neighbors become non-mutating follow-up candidates; Stellarity never changes those dependent sections automatically.
+
 See [docs/architecture.md](docs/architecture.md) for package boundaries, dependency direction, and extension points.

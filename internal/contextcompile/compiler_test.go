@@ -26,6 +26,9 @@ func TestCompileResolvesCrossDocumentReferencesAndBacklinks(t *testing.T) {
 	if compiled.Assessment.Level != "high" || compiled.Assessment.Explicit != 2 {
 		t.Fatalf("unexpected assessment: %#v", compiled.Assessment)
 	}
+	if len(compiled.Impacts) != 1 || compiled.Impacts[0].Title != "Consumers" {
+		t.Fatalf("unexpected impacts: %#v", compiled.Impacts)
+	}
 	for i := range want {
 		if items[i].Kind != want[i].kind || items[i].Title != want[i].title || items[i].DocumentTitle != want[i].document {
 			t.Fatalf("item %d = %#v", i, items[i])

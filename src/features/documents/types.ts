@@ -33,6 +33,17 @@ export interface Patch {
   appliedAt?: string;
   context: ContextItem[];
   assessment: ContextAssessment;
+  impacts: ImpactFinding[];
+}
+
+export interface ImpactFinding {
+  kind: 'backlink' | 'semantic' | 'diagram';
+  documentId: string;
+  documentTitle: string;
+  sectionId: string;
+  title: string;
+  reason: string;
+  score?: number;
 }
 
 export interface ContextAssessment {

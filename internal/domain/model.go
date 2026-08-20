@@ -33,6 +33,7 @@ type Patch struct {
 	AppliedAt   *string           `json:"appliedAt"`
 	Context     []ContextItem     `json:"context"`
 	Assessment  ContextAssessment `json:"assessment"`
+	Impacts     []ImpactFinding   `json:"impacts"`
 }
 
 type ContextItem struct {
@@ -80,6 +81,17 @@ type SectionEmbedding struct {
 type CompiledContext struct {
 	Items      []ContextItem
 	Assessment ContextAssessment
+	Impacts    []ImpactFinding
+}
+
+type ImpactFinding struct {
+	Kind          string  `json:"kind"`
+	DocumentID    string  `json:"documentId"`
+	DocumentTitle string  `json:"documentTitle"`
+	SectionID     string  `json:"sectionId"`
+	Title         string  `json:"title"`
+	Reason        string  `json:"reason"`
+	Score         float64 `json:"score,omitempty"`
 }
 
 type ContextAssessment struct {

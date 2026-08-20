@@ -60,6 +60,19 @@ func (c *Compiler) Compile(ctx context.Context, document domain.Document, select
 	}
 
 	items := make([]domain.ContextItem, 0)
+	impacts := make([]domain.ImpactFinding, 0)
+	impactSeen := map[string]bool{}
+	addImpact := func(section domain.IndexedSection, kind, reason string, score float64) {
+		if impactSeen[section.ID] {
+			return
+		}
+		impactSeen[section.ID] = true
+		if strings.Contains(section.Content, "```mermaid") {
+			kind = "diagram"
+			reason = "Linked diagram may encode the changed behavior"
+		}
+		impacts = append(impacts, domain.ImpactFinding{Kind: kind, DocumentID: section.DocumentID, DocumentTitle: section.DocumentTitle, SectionID: section.ID, Title: section.Title, Reason: reason, Score: score})
+	}
 	seen := map[string]bool{selected.ID: true}
 	remaining := c.MaxCharacters
 	add := func(section domain.IndexedSection, kind string, headingOnly bool) {
@@ -98,6 +111,7 @@ func (c *Compiler) Compile(ctx context.Context, document domain.Document, select
 		if target, ok := resolveTarget(sections, sourceDocument(sections, link.SourceSectionID), link); ok && target.ID == selected.ID {
 			if source, found := sectionByID(sections, link.SourceSectionID); found {
 				add(source, "backlink", false)
+				addImpact(source, "backlink", "This section explicitly references the edited section", 0)
 			}
 		}
 	}
@@ -115,11 +129,16 @@ func (c *Compiler) Compile(ctx context.Context, document domain.Document, select
 				if !seen[item.SectionID] {
 					items = append(items, item)
 					seen[item.SectionID] = true
+					if item.Score >= .85 {
+						if section, found := sectionByID(sections, item.SectionID); found {
+							addImpact(section, "semantic", "Closely related content may need consistency review", item.Score)
+						}
+					}
 				}
 			}
 		}
 	}
-	return domain.CompiledContext{Items: items, Assessment: assess(items, unresolved)}, nil
+	return domain.CompiledContext{Items: items, Assessment: assess(items, unresolved), Impacts: impacts}, nil
 }
 
 func assess(items []domain.ContextItem, unresolved int) domain.ContextAssessment {

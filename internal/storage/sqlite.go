@@ -35,7 +35,7 @@ func (r *Repository) Close() error { return r.db.Close() }
 func (r *Repository) migrate(ctx context.Context) error {
 	_, err := r.db.ExecContext(ctx, `
 CREATE TABLE IF NOT EXISTS documents (id TEXT PRIMARY KEY, title TEXT NOT NULL, content TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS patches (id TEXT PRIMARY KEY, document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE, base_version INTEGER NOT NULL, start_offset INTEGER NOT NULL, end_offset INTEGER NOT NULL, original_text TEXT NOT NULL, replacement_text TEXT NOT NULL, instruction TEXT NOT NULL, context_json TEXT NOT NULL DEFAULT '[]', assessment_json TEXT NOT NULL DEFAULT '{}', status TEXT NOT NULL CHECK(status IN ('proposed','applied','rejected')), created_at TEXT NOT NULL, applied_at TEXT);
+CREATE TABLE IF NOT EXISTS patches (id TEXT PRIMARY KEY, document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE, base_version INTEGER NOT NULL, start_offset INTEGER NOT NULL, end_offset INTEGER NOT NULL, original_text TEXT NOT NULL, replacement_text TEXT NOT NULL, instruction TEXT NOT NULL, context_json TEXT NOT NULL DEFAULT '[]', assessment_json TEXT NOT NULL DEFAULT '{}', impacts_json TEXT NOT NULL DEFAULT '[]', status TEXT NOT NULL CHECK(status IN ('proposed','applied','rejected')), created_at TEXT NOT NULL, applied_at TEXT);
 CREATE TABLE IF NOT EXISTS document_revisions (id TEXT PRIMARY KEY, document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE, version INTEGER NOT NULL, content TEXT NOT NULL, patch_id TEXT REFERENCES patches(id), created_at TEXT NOT NULL, UNIQUE(document_id, version));
 CREATE TABLE IF NOT EXISTS document_sections (id TEXT PRIMARY KEY, document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE, document_title TEXT NOT NULL, title TEXT NOT NULL, slug TEXT NOT NULL, level INTEGER NOT NULL, start_offset INTEGER NOT NULL, end_offset INTEGER NOT NULL, content TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS document_links (id INTEGER PRIMARY KEY AUTOINCREMENT, source_section_id TEXT NOT NULL REFERENCES document_sections(id) ON DELETE CASCADE, target_document TEXT NOT NULL, target_heading TEXT NOT NULL, kind TEXT NOT NULL);
@@ -50,7 +50,10 @@ CREATE INDEX IF NOT EXISTS links_source ON document_links(source_section_id);`)
 	if err := r.ensureColumn(ctx, "patches", "context_json", "TEXT NOT NULL DEFAULT '[]'"); err != nil {
 		return err
 	}
-	return r.ensureColumn(ctx, "patches", "assessment_json", "TEXT NOT NULL DEFAULT '{}'")
+	if err := r.ensureColumn(ctx, "patches", "assessment_json", "TEXT NOT NULL DEFAULT '{}'"); err != nil {
+		return err
+	}
+	return r.ensureColumn(ctx, "patches", "impacts_json", "TEXT NOT NULL DEFAULT '[]'")
 }
 
 func (r *Repository) ensureColumn(ctx context.Context, table, column, definition string) error {
@@ -98,13 +101,16 @@ func scanDocument(row interface{ Scan(...any) error }) (domain.Document, error) 
 func scanPatch(row interface{ Scan(...any) error }) (domain.Patch, error) {
 	var p domain.Patch
 	var applied sql.NullString
-	var contextJSON, assessmentJSON string
-	err := row.Scan(&p.ID, &p.DocumentID, &p.BaseVersion, &p.Start, &p.End, &p.Original, &p.Replacement, &p.Instruction, &contextJSON, &assessmentJSON, &p.Status, &p.CreatedAt, &applied)
+	var contextJSON, assessmentJSON, impactsJSON string
+	err := row.Scan(&p.ID, &p.DocumentID, &p.BaseVersion, &p.Start, &p.End, &p.Original, &p.Replacement, &p.Instruction, &contextJSON, &assessmentJSON, &impactsJSON, &p.Status, &p.CreatedAt, &applied)
 	if err == nil {
 		err = json.Unmarshal([]byte(contextJSON), &p.Context)
 	}
 	if err == nil {
 		err = json.Unmarshal([]byte(assessmentJSON), &p.Assessment)
+	}
+	if err == nil {
+		err = json.Unmarshal([]byte(impactsJSON), &p.Impacts)
 	}
 	if applied.Valid {
 		p.AppliedAt = &applied.String
@@ -181,7 +187,7 @@ func (r *Repository) SaveDocument(ctx context.Context, id string, version int, t
 	return r.GetDocument(ctx, id)
 }
 
-const patchSelect = "SELECT id,document_id,base_version,start_offset,end_offset,original_text,replacement_text,instruction,context_json,assessment_json,status,created_at,applied_at FROM patches"
+const patchSelect = "SELECT id,document_id,base_version,start_offset,end_offset,original_text,replacement_text,instruction,context_json,assessment_json,impacts_json,status,created_at,applied_at FROM patches"
 
 func (r *Repository) CreatePatch(ctx context.Context, p domain.Patch) error {
 	contextJSON, err := json.Marshal(p.Context)
@@ -192,7 +198,11 @@ func (r *Repository) CreatePatch(ctx context.Context, p domain.Patch) error {
 	if err != nil {
 		return err
 	}
-	_, err = r.db.ExecContext(ctx, "INSERT INTO patches(id,document_id,base_version,start_offset,end_offset,original_text,replacement_text,instruction,context_json,assessment_json,status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)", p.ID, p.DocumentID, p.BaseVersion, p.Start, p.End, p.Original, p.Replacement, p.Instruction, string(contextJSON), string(assessmentJSON), p.Status, p.CreatedAt)
+	impactsJSON, err := json.Marshal(p.Impacts)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.ExecContext(ctx, "INSERT INTO patches(id,document_id,base_version,start_offset,end_offset,original_text,replacement_text,instruction,context_json,assessment_json,impacts_json,status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)", p.ID, p.DocumentID, p.BaseVersion, p.Start, p.End, p.Original, p.Replacement, p.Instruction, string(contextJSON), string(assessmentJSON), string(impactsJSON), p.Status, p.CreatedAt)
 	return err
 }
 func (r *Repository) ListPatches(ctx context.Context, documentID string) ([]domain.Patch, error) {

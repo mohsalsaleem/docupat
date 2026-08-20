@@ -23,7 +23,7 @@ func TestPatchContextRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	patch := domain.Patch{ID: "patch", DocumentID: document.ID, BaseVersion: 1, Start: 0, End: 6, Original: "target", Replacement: "changed", Instruction: "rewrite", Status: "proposed", CreatedAt: "now", Context: []domain.ContextItem{{Kind: "reference", Title: "Architecture", Content: "## Architecture"}}, Assessment: domain.ContextAssessment{Score: 80, Level: "high", Explicit: 1, Summary: "Strong workspace support"}}
+	patch := domain.Patch{ID: "patch", DocumentID: document.ID, BaseVersion: 1, Start: 0, End: 6, Original: "target", Replacement: "changed", Instruction: "rewrite", Status: "proposed", CreatedAt: "now", Context: []domain.ContextItem{{Kind: "reference", Title: "Architecture", Content: "## Architecture"}}, Assessment: domain.ContextAssessment{Score: 80, Level: "high", Explicit: 1, Summary: "Strong workspace support"}, Impacts: []domain.ImpactFinding{{Kind: "backlink", Title: "LLD", SectionID: "section"}}}
 	if err := repository.CreatePatch(context.Background(), patch); err != nil {
 		t.Fatal(err)
 	}
@@ -31,7 +31,7 @@ func TestPatchContextRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(items) != 1 || len(items[0].Context) != 1 || items[0].Context[0].Title != "Architecture" || items[0].Assessment.Score != 80 {
+	if len(items) != 1 || len(items[0].Context) != 1 || items[0].Context[0].Title != "Architecture" || items[0].Assessment.Score != 80 || len(items[0].Impacts) != 1 {
 		t.Fatalf("context did not round trip: %#v", items)
 	}
 }

@@ -2,6 +2,7 @@ import type { Patch } from '../../documents/types';
 import { Button, Dialog } from '../../../ui';
 import { DiffView } from './DiffView';
 import { ContextSummary } from './ContextSummary';
+import { ImpactSummary } from './ImpactSummary';
 
 interface PatchPanelProps { selection:{start:number;end:number};instruction:string;useContext:boolean;proposal:Patch|null;busy:boolean;message:string;onInstruction:(value:string)=>void;onUseContext:(value:boolean)=>void;onPropose:()=>void;onApply:()=>void;onReject:()=>void }
 
@@ -28,6 +29,7 @@ export function PatchComposer(props: PatchPanelProps) {
 function Proposal(props:{proposal:Patch;busy:boolean;onApply:()=>void;onReject:()=>void}) {
   return <Dialog title="Review focused edit" description="Only the selected text will change" badge="SCOPED PATCH" busy={props.busy} confirmLabel="Apply change" dismissLabel="Discard" onConfirm={props.onApply} onDismiss={props.onReject}>
     <ContextSummary items={props.proposal.context ?? []} assessment={props.proposal.assessment} />
+    <ImpactSummary items={props.proposal.impacts ?? []} />
     <DiffView before={props.proposal.original} after={props.proposal.replacement} />
   </Dialog>;
 }
