@@ -20,7 +20,7 @@ export function App() {
         <DocumentTabs document={app.document} dirty={dirty} />
         <div className="relative min-h-0 flex-1 overflow-hidden">
           <Workspace preview={app.preview} content={app.draft} onChange={app.onDraft} onSelection={app.onSelection} onEditor={app.onEditor} />
-          <PatchComposer selection={app.selection} instruction={app.instruction} useContext={app.useContext} proposal={app.proposal} busy={app.busy} message={app.message} onInstruction={app.setInstruction} onUseContext={app.setUseContext} onPropose={app.propose} onApply={app.apply} onReject={app.reject} />
+          <PatchComposer selection={app.selection} instruction={app.instruction} proposal={app.proposal} busy={app.busy} message={app.message} onInstruction={app.setInstruction} onPropose={app.propose} onApply={app.apply} onReject={app.reject} />
         </div>
       </section>
     </main>

@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"docpatch/internal/domain"
@@ -33,6 +34,29 @@ func TestPatchContextRoundTrip(t *testing.T) {
 	}
 	if len(items) != 1 || len(items[0].Context) != 1 || items[0].Context[0].Title != "Architecture" || items[0].Assessment.Score != 80 || len(items[0].Impacts) != 1 {
 		t.Fatalf("context did not round trip: %#v", items)
+	}
+}
+
+func TestListDocumentsReturnsBoundedExcerptWithoutFullContent(t *testing.T) {
+	next := 0
+	repository, err := Open(filepath.Join(t.TempDir(), "summaries.db"), func() string {
+		next++
+		return string(rune('a' + next))
+	}, func() string { return "2026-01-01T00:00:00Z" })
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer repository.Close()
+	content := "# Design\n\n" + strings.Repeat("x", 700)
+	if _, err := repository.CreateDocument(context.Background(), "Design", content); err != nil {
+		t.Fatal(err)
+	}
+	items, err := repository.ListDocuments(context.Background())
+	if err != nil || len(items) != 1 {
+		t.Fatalf("ListDocuments() = %#v, %v", items, err)
+	}
+	if items[0].Content != "" || len(items[0].Excerpt) != 600 {
+		t.Fatalf("expected summary-only document, got content=%d excerpt=%d", len(items[0].Content), len(items[0].Excerpt))
 	}
 }
 

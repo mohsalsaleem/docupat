@@ -2,6 +2,7 @@ export interface Document {
   id: string;
   title: string;
   content: string;
+  excerpt?: string;
   version: number;
   createdAt: string;
   updatedAt: string;

@@ -130,14 +130,15 @@ func (r *Repository) GetDocument(ctx context.Context, id string) (domain.Documen
 	return d, translate(err)
 }
 func (r *Repository) ListDocuments(ctx context.Context) ([]domain.Document, error) {
-	rows, err := r.db.QueryContext(ctx, "SELECT id,title,'' AS content,version,created_at,updated_at FROM documents ORDER BY updated_at DESC")
+	rows, err := r.db.QueryContext(ctx, "SELECT id,title,substr(content,1,600),version,created_at,updated_at FROM documents ORDER BY updated_at DESC")
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	items := []domain.Document{}
 	for rows.Next() {
-		d, e := scanDocument(rows)
+		var d domain.Document
+		e := rows.Scan(&d.ID, &d.Title, &d.Excerpt, &d.Version, &d.CreatedAt, &d.UpdatedAt)
 		if e != nil {
 			return nil, e
 		}

@@ -14,6 +14,7 @@ type Document struct {
 	ID        string `json:"id"`
 	Title     string `json:"title"`
 	Content   string `json:"content,omitempty"`
+	Excerpt   string `json:"excerpt,omitempty"`
 	Version   int    `json:"version"`
 	CreatedAt string `json:"createdAt"`
 	UpdatedAt string `json:"updatedAt"`

@@ -9,11 +9,10 @@ export function useDocPatch() {
   const [draft, setDraft] = useState('');
   const [selection, setSelection] = useState({ start: 0, end: 0 });
   const [instruction, setInstruction] = useState('');
-  const [useContext, setUseContext] = useState(true);
   const [proposal, setProposal] = useState<Patch | null>(null);
   const [patches, setPatches] = useState<Patch[]>([]);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState('Select text or a section to create a scoped patch.');
+  const [message, setMessage] = useState('Select text or a section, then describe what you want to change.');
   const [preview, setPreview] = useState(false);
   const editor = useRef<EditorView | null>(null);
 
@@ -57,13 +56,13 @@ export function useDocPatch() {
     if (!document || !(selection.end > selection.start) || !instruction.trim()) return;
     await run(async () => {
       if (draft !== document.content) {
-        setMessage('Save the document before generating a patch.');
+        setMessage('Let the current edit finish saving, then try again.');
         return;
       }
-      setMessage('The configured model is drafting a replacement…');
-      const next = await documentApi.propose(document, selection.start, selection.end, instruction, useContext);
+      setMessage('Writing a suggestion…');
+      const next = await documentApi.propose(document, selection.start, selection.end, instruction, true);
       setProposal(next);
-      setMessage('Review the source diff and rendered diagrams before applying.');
+      setMessage('Your suggestion is ready to review.');
     });
   }
 
@@ -76,7 +75,7 @@ export function useDocPatch() {
       if (editor.current) replaceEditorContent(editor.current, next.content);
       setProposal(null);
       setPatches(await documentApi.patches(next.id));
-      setMessage(`Patch applied as version ${next.version}.`);
+      setMessage('Change applied.');
     });
   }
 
@@ -86,7 +85,7 @@ export function useDocPatch() {
       await documentApi.reject(proposal.id);
       setProposal(null);
       setPatches(await documentApi.patches(proposal.documentId));
-      setMessage('Patch rejected; the document was not changed.');
+      setMessage('Suggestion discarded. Your document was not changed.');
     });
   }
 
@@ -101,12 +100,12 @@ export function useDocPatch() {
   }
 
   return {
-    documents, document, draft, selection, instruction, useContext, proposal, patches, busy, message, preview,
+    documents, document, draft, selection, instruction, proposal, patches, busy, message, preview,
     open, create, save, propose, apply, reject, chooseSection,
     onEditor: (view: EditorView | null) => { editor.current = view; },
     onSelection: (start: number, end: number) => setSelection({ start, end }),
     onDraft: setDraft,
-    setInstruction, setUseContext, setPreview,
+    setInstruction, setPreview,
   };
 }
 
