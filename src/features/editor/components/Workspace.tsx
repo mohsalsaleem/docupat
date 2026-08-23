@@ -1,17 +1,13 @@
 import { useEffect, useEffectEvent, useRef } from 'octane';
 import type { EditorView } from '@codemirror/view';
 import { createEditor, replaceEditorContent } from '../codeMirror';
-import { mermaidBlocks } from '../markdown';
-import { MermaidPreview } from './MermaidPreview';
+import { MarkdownPreview } from './MarkdownPreview';
 
 interface WorkspaceProps { preview:boolean; content:string; onChange:(content:string)=>void; onSelection:(start:number,end:number)=>void; onEditor:(view:EditorView|null)=>void }
 
 export function Workspace(props: WorkspaceProps) {
   if (!props.preview) return <EditorSurface content={props.content} onChange={props.onChange} onSelection={props.onSelection} onEditor={props.onEditor} />;
-  const diagrams = mermaidBlocks(props.content);
-  return <section className="min-w-0 overflow-hidden"><div className="h-full space-y-4 overflow-auto p-8">
-    {diagrams.length ? diagrams.map((diagram) => <MermaidPreview key={diagram.id} {...diagram} />) : <div className="grid h-full place-items-center text-sm text-zinc-600">No Mermaid blocks in this document.</div>}
-  </div></section>;
+  return <MarkdownPreview content={props.content} />;
 }
 
 function EditorSurface(props:{content:string;onChange:(content:string)=>void;onSelection:(start:number,end:number)=>void;onEditor:(view:EditorView|null)=>void}) {
