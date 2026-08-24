@@ -4,7 +4,7 @@ import { DiffView } from './DiffView';
 import { ContextSummary } from './ContextSummary';
 import { ImpactSummary } from './ImpactSummary';
 
-interface PatchPanelProps { selection:{start:number;end:number};instruction:string;proposal:Patch|null;busy:boolean;message:string;onInstruction:(value:string)=>void;onPropose:()=>void;onApply:()=>void;onReject:()=>void }
+interface PatchPanelProps { selection:{start:number;end:number};instruction:string;proposal:Patch|null;busy:boolean;message:string;onInstruction:(value:string)=>void;onPropose:()=>void;onApply:()=>void;onReject:()=>void;onRegenerate:()=>void }
 
 export function PatchComposer(props: PatchPanelProps) {
   const selected = props.selection.end > props.selection.start;
@@ -22,12 +22,13 @@ export function PatchComposer(props: PatchPanelProps) {
         </div>
       </div>
     </div>
-    {props.proposal ? <Proposal proposal={props.proposal} busy={props.busy} onApply={props.onApply} onReject={props.onReject} /> : null}
+    {props.proposal ? <Proposal proposal={props.proposal} instruction={props.instruction} busy={props.busy} onInstruction={props.onInstruction} onRegenerate={props.onRegenerate} onApply={props.onApply} onReject={props.onReject} /> : null}
   </>;
 }
 
-function Proposal(props:{proposal:Patch;busy:boolean;onApply:()=>void;onReject:()=>void}) {
-  return <Dialog title="Review suggested edit" description="Only the selected text will change" badge="AI SUGGESTION" busy={props.busy} confirmLabel="Apply change" dismissLabel="Discard" onConfirm={props.onApply} onDismiss={props.onReject}>
+function Proposal(props:{proposal:Patch;instruction:string;busy:boolean;onInstruction:(value:string)=>void;onRegenerate:()=>void;onApply:()=>void;onReject:()=>void}) {
+  return <Dialog title="Review suggested edit" description="Only the selected text will change" badge="AI SUGGESTION" busy={props.busy} confirmLabel="Apply change" dismissLabel="Discard" secondaryActionLabel="Try again" onSecondaryAction={props.onRegenerate} onConfirm={props.onApply} onDismiss={props.onReject}>
+    <label className="mb-4 block text-[10px] font-semibold uppercase tracking-[.14em] text-zinc-500">Instruction<textarea value={props.instruction} onInput={(event)=>props.onInstruction(event.currentTarget.value)} className="mt-2 min-h-16 w-full resize-y rounded-lg border border-white/[.08] bg-black/20 px-3 py-2 text-xs font-normal normal-case tracking-normal text-zinc-300 outline-none focus:border-lime-300/20" /></label>
     <ContextSummary items={props.proposal.context ?? []} assessment={props.proposal.assessment} />
     <ImpactSummary items={props.proposal.impacts ?? []} />
     <DiffView before={props.proposal.original} after={props.proposal.replacement} />

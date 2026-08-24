@@ -27,10 +27,12 @@ button:disabled { cursor: not-allowed; }
 .markdown-preview li { margin: .25rem 0; padding-left: .25rem; }
 .markdown-preview blockquote { margin: 1.25rem 0; border-left: 3px solid rgba(184,233,134,.45); padding: .2rem 0 .2rem 1rem; color: #929790; }
 .markdown-preview code { border: 1px solid rgba(255,255,255,.07); border-radius: .35rem; background: #181a18; padding: .12rem .35rem; color: #d7e7c7; font-family: "SFMono-Regular", Consolas, monospace; font-size: .88em; }
-.markdown-preview pre { margin: 1.25rem 0; overflow-x: auto; border: 1px solid rgba(255,255,255,.08); border-radius: .75rem; background: #111311; padding: 1rem; }
+.markdown-preview pre { position: relative; margin: 1.25rem 0; overflow-x: auto; border: 1px solid rgba(255,255,255,.08); border-radius: .75rem; background: #111311; padding: 1rem; }
 .markdown-preview pre code { border: 0; background: transparent; padding: 0; color: #c9cec6; }
 .markdown-preview table { margin: 1.5rem 0; width: 100%; border-collapse: collapse; font-size: .92rem; }
 .markdown-preview th, .markdown-preview td { border: 1px solid rgba(255,255,255,.09); padding: .6rem .75rem; text-align: left; }
 .markdown-preview th { background: rgba(255,255,255,.035); color: #e5e7e3; font-weight: 600; }
 .markdown-preview hr { margin: 2.5rem 0; border: 0; border-top: 1px solid rgba(255,255,255,.09); }
 .markdown-preview img { max-width: 100%; border-radius: .75rem; }
+.markdown-preview .copy-code { position: absolute; right: .5rem; top: .5rem; border-radius: .35rem; background: #242724; padding: .25rem .5rem; color: #8f958d; font-family: Inter, sans-serif; font-size: 10px; }
+.markdown-preview .copy-code:hover { color: #e5e7e3; }

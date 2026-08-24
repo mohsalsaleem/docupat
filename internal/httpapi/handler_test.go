@@ -83,6 +83,22 @@ func TestDocumentPatchWorkflow(t *testing.T) {
 	var second domain.Patch
 	decodeResponse(t, secondResponse, &second)
 	assertStatus(t, perform(t, handler, http.MethodPost, "/api/patches/"+second.ID+"/reject", nil), 200)
+	restoredResponse := perform(t, handler, http.MethodPost, "/api/documents/"+created.ID+"/restore", map[string]any{"version": 2})
+	assertStatus(t, restoredResponse, 200)
+	var restored domain.Document
+	decodeResponse(t, restoredResponse, &restored)
+	if restored.Content != "hello body" || restored.Version != 4 {
+		t.Fatalf("unexpected restored document: %+v", restored)
+	}
+
+	deletedResponse := perform(t, handler, http.MethodDelete, "/api/documents/"+created.ID, nil)
+	assertStatus(t, deletedResponse, 200)
+	var deleted domain.Document
+	decodeResponse(t, deletedResponse, &deleted)
+	if deleted.Content != "hello body" {
+		t.Fatalf("unexpected deleted document: %+v", deleted)
+	}
+	assertStatus(t, perform(t, handler, http.MethodGet, "/api/documents/"+created.ID, nil), 404)
 }
 
 func TestValidationErrorsAndSPA(t *testing.T) {

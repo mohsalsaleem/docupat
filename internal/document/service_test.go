@@ -87,6 +87,12 @@ func (f *fakeRepository) CreateDocument(context.Context, string, string) (domain
 func (f *fakeRepository) SaveDocument(context.Context, string, int, string, string) (domain.Document, error) {
 	return f.document, nil
 }
+func (f *fakeRepository) DeleteDocument(context.Context, string) (domain.Document, error) {
+	return f.document, nil
+}
+func (f *fakeRepository) GetDocumentRevision(context.Context, string, int) (string, error) {
+	return f.document.Content, nil
+}
 func (f *fakeRepository) ListPatches(context.Context, string) ([]domain.Patch, error) {
 	return nil, nil
 }

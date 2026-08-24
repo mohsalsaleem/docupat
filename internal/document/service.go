@@ -13,6 +13,8 @@ type Repository interface {
 	GetDocument(context.Context, string) (domain.Document, error)
 	CreateDocument(context.Context, string, string) (domain.Document, error)
 	SaveDocument(context.Context, string, int, string, string) (domain.Document, error)
+	DeleteDocument(context.Context, string) (domain.Document, error)
+	GetDocumentRevision(context.Context, string, int) (string, error)
 	ListPatches(context.Context, string) ([]domain.Patch, error)
 	CreatePatch(context.Context, domain.Patch) error
 	ApplyPatch(context.Context, string) (domain.Document, error)
@@ -98,6 +100,32 @@ func (s *Service) Save(ctx context.Context, id string, version int, title, conte
 		return doc, err
 	}
 	return doc, s.index(ctx, doc)
+}
+
+func (s *Service) Delete(ctx context.Context, id string) (domain.Document, error) {
+	if id == "" {
+		return domain.Document{}, domain.ErrInvalid
+	}
+	return s.repository.DeleteDocument(ctx, id)
+}
+
+func (s *Service) Restore(ctx context.Context, id string, version int) (domain.Document, error) {
+	if id == "" || version < 1 {
+		return domain.Document{}, domain.ErrInvalid
+	}
+	current, err := s.repository.GetDocument(ctx, id)
+	if err != nil {
+		return domain.Document{}, err
+	}
+	content, err := s.repository.GetDocumentRevision(ctx, id, version)
+	if err != nil {
+		return domain.Document{}, err
+	}
+	restored, err := s.repository.SaveDocument(ctx, id, current.Version, current.Title, content)
+	if err != nil {
+		return restored, err
+	}
+	return restored, s.index(ctx, restored)
 }
 
 func (s *Service) ReindexAll(ctx context.Context) error {

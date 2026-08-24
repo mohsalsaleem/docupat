@@ -3,7 +3,7 @@ import { headings } from '../../editor/markdown';
 import { SectionLabel } from '../../../ui';
 import type { NavigationView } from '../types';
 
-interface SidebarProps { view:NavigationView; documents:Document[]; active:Document|null; draft:string; patches:Patch[]; onOpen:(id:string)=>void; onSelect:(start:number,end:number)=>void; onNew:()=>void }
+interface SidebarProps { view:NavigationView; documents:Document[]; active:Document|null; draft:string; patches:Patch[]; onOpen:(id:string)=>void; onSelect:(start:number,end:number)=>void; onNew:()=>void; onRestore:(version:number)=>void }
 
 export function Sidebar(props: SidebarProps) {
   return <aside className="min-w-0 overflow-auto border-r border-white/[.07] bg-[var(--surface-1)] px-3 py-4">
@@ -47,8 +47,8 @@ function OutlineView(props: SidebarProps) {
 
 function ChangesView(props: SidebarProps) {
   return <><SectionLabel>Changes</SectionLabel>
-    {props.patches.slice(0, 8).map((item) => <div key={item.id} className="mb-2 border-l border-white/10 pl-2 text-[11px] text-zinc-500">
-      <span className={statusColor(item.status)}>{item.status}</span>{' · '}{item.instruction}
+    {props.patches.slice(0, 8).map((item) => <div key={item.id} className="mb-2 border-l border-white/10 py-1 pl-2 text-[11px] text-zinc-500">
+      <span className={statusColor(item.status)}>{item.status}</span>{' · '}{item.instruction}{item.status==='applied'?<button onClick={()=>props.onRestore(item.baseVersion)} className="mt-1 block text-[10px] text-lime-200/70 hover:text-lime-200">Restore v{item.baseVersion}</button>:null}
     </div>)}
     {!props.patches.length ? <div className="py-8 text-center text-[11px] text-zinc-600">Suggested edits will appear here.</div> : null}
   </>;

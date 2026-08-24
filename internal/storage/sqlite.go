@@ -188,6 +188,28 @@ func (r *Repository) SaveDocument(ctx context.Context, id string, version int, t
 	return r.GetDocument(ctx, id)
 }
 
+func (r *Repository) DeleteDocument(ctx context.Context, id string) (domain.Document, error) {
+	document, err := r.GetDocument(ctx, id)
+	if err != nil {
+		return document, err
+	}
+	result, err := r.db.ExecContext(ctx, "DELETE FROM documents WHERE id=?", id)
+	if err != nil {
+		return document, err
+	}
+	affected, _ := result.RowsAffected()
+	if affected == 0 {
+		return document, domain.ErrNotFound
+	}
+	return document, nil
+}
+
+func (r *Repository) GetDocumentRevision(ctx context.Context, id string, version int) (string, error) {
+	var content string
+	err := r.db.QueryRowContext(ctx, "SELECT content FROM document_revisions WHERE document_id=? AND version=?", id, version).Scan(&content)
+	return content, translate(err)
+}
+
 const patchSelect = "SELECT id,document_id,base_version,start_offset,end_offset,original_text,replacement_text,instruction,context_json,assessment_json,impacts_json,status,created_at,applied_at FROM patches"
 
 func (r *Repository) CreatePatch(ctx context.Context, p domain.Patch) error {

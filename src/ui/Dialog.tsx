@@ -10,6 +10,8 @@ interface DialogProps {
   dismissLabel: string;
   onConfirm: () => void;
   onDismiss: () => void;
+  secondaryActionLabel?: string;
+  onSecondaryAction?: () => void;
 }
 
 export function Dialog(props: DialogProps) {
@@ -21,6 +23,7 @@ export function Dialog(props: DialogProps) {
       </header>
       {props.children}
       <footer className="mt-5 flex justify-end gap-2">
+        {props.secondaryActionLabel && props.onSecondaryAction ? <Button disabled={props.busy} onClick={props.onSecondaryAction}>{props.secondaryActionLabel}</Button> : null}
         <Button onClick={props.onDismiss}>{props.dismissLabel}</Button>
         <Button variant="primary" size="md" disabled={props.busy} onClick={props.onConfirm}>{props.confirmLabel}</Button>
       </footer>

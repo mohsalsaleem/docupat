@@ -38,6 +38,8 @@ func (h *Handler) Router(static fs.FS) http.Handler {
 	r.Route("/api/documents/{id}", func(r chi.Router) {
 		r.Get("/", h.getDocument)
 		r.Put("/", h.saveDocument)
+		r.Delete("/", h.deleteDocument)
+		r.Post("/restore", h.restoreDocument)
 		r.Get("/patches", h.listPatches)
 		r.Post("/patches", h.proposePatch)
 	})
@@ -118,6 +120,29 @@ func (h *Handler) saveDocument(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	item, err := h.service.Save(r.Context(), chi.URLParam(r, "id"), in.Version, in.Title, in.Content)
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	writeJSON(w, 200, item)
+}
+func (h *Handler) deleteDocument(w http.ResponseWriter, r *http.Request) {
+	item, err := h.service.Delete(r.Context(), chi.URLParam(r, "id"))
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	writeJSON(w, 200, item)
+}
+func (h *Handler) restoreDocument(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Version int `json:"version"`
+	}
+	if err := decode(r, &in); err != nil {
+		fail(w, domain.ErrInvalid)
+		return
+	}
+	item, err := h.service.Restore(r.Context(), chi.URLParam(r, "id"), in.Version)
 	if err != nil {
 		fail(w, err)
 		return

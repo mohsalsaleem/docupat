@@ -9,6 +9,8 @@ export const documentApi = {
     method: 'PUT',
     body: JSON.stringify({ title: document.title, content: document.content, version: document.version }),
   }),
+  delete: (id: string) => requestJSON<Document>(`/api/documents/${id}`, { method: 'DELETE' }),
+  restore: (id:string,version:number) => requestJSON<Document>(`/api/documents/${id}/restore`,{method:'POST',body:JSON.stringify({version})}),
   patches: (id: string) => requestJSON<Patch[]>(`/api/documents/${id}/patches`),
   propose: (document: Document, start: number, end: number, instruction: string, useContext: boolean) => requestJSON<Patch>(`/api/documents/${document.id}/patches`, {
     method: 'POST',
